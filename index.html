@@ -44,7 +44,7 @@
     // ==========================================
     // 1. Pega aquí tus credenciales de Supabase (Project Settings -> API)
     const SUPABASE_URL = "https://bbqgjvcevlnjdqrrthhh.supabase.co"; 
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0"; 
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
     const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
@@ -523,15 +523,16 @@
         }
       };
 
-      // 🟢 CORRECCIÓN: EVITAMOS TEXTOS VACÍOS USANDO "nadie" COMO PALABRA CLAVE
+      // 🟢 CORRECCIÓN MAGISTRAL: 100% a prueba de fallos
       const handleSaveRoutine = () => {
         if (!routineName) return alert("Por favor, ponle nombre a la rutina.");
         if (exercises.length === 0) return alert("Agrega al menos un ejercicio.");
         
         let finalAssignedTo = "todos";
         if (!isPublic) {
-          // Si era privada y ya tenía correos, los conservamos. Si no tenía a nadie, guardamos "nadie"
-          if (initialRoutine && initialRoutine.assignedTo && initialRoutine.assignedTo !== "todos" && initialRoutine.assignedTo !== "nadie") {
+          // Si es privada, conservamos los correos que ya tenía. 
+          // Si estaba asignada a "todos" o no tenía correos, le ponemos obligatoriamente "nadie".
+          if (initialRoutine?.assignedTo && initialRoutine.assignedTo !== "todos" && initialRoutine.assignedTo !== "nadie") {
             finalAssignedTo = initialRoutine.assignedTo;
           } else {
             finalAssignedTo = "nadie";
@@ -539,7 +540,7 @@
         }
 
         onSave({
-          id: initialRoutine ? initialRoutine.id : `rutina_${Date.now()}`,
+          id: initialRoutine?.id || `rutina_${Date.now()}`,
           name: routineName,
           assignedTo: finalAssignedTo,
           exercises: exercises
@@ -567,26 +568,37 @@
                   <input type="text" value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="Ej. Día de Pierna Pesado" className="w-full text-xl p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition" />
                 </div>
                 
+                {/* 🟢 RECONSTRUCCIÓN: Botones interactivos puros (Eliminamos el input radio nativo) */}
                 <div className="flex flex-col gap-2">
                   <label className="block text-sm font-bold text-slate-600 mb-1 flex items-center gap-2">
                     <Icon name="globe" size={16} className="text-blue-500" /> Visibilidad de la rutina
                   </label>
                   
-                  <label className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${isPublic ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
-                    <input type="radio" checked={isPublic} onChange={() => setIsPublic(true)} className="w-5 h-5 text-blue-600" />
+                  <div 
+                    onClick={() => setIsPublic(true)} 
+                    className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all select-none ${isPublic ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                  >
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${isPublic ? 'border-blue-600' : 'border-slate-300'}`}>
+                      {isPublic && <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>}
+                    </div>
                     <div>
                       <p className="font-bold text-blue-950 text-sm">Pública (Todos los clientes)</p>
                       <p className="text-xs text-slate-500">Visible para cualquier alumno.</p>
                     </div>
-                  </label>
+                  </div>
                   
-                  <label className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${!isPublic ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
-                    <input type="radio" checked={!isPublic} onChange={() => setIsPublic(false)} className="w-5 h-5 text-blue-600" />
+                  <div 
+                    onClick={() => setIsPublic(false)} 
+                    className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all select-none ${!isPublic ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                  >
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${!isPublic ? 'border-blue-600' : 'border-slate-300'}`}>
+                      {!isPublic && <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>}
+                    </div>
                     <div>
                       <p className="font-bold text-blue-950 text-sm">Privada (Específica)</p>
                       <p className="text-xs text-slate-500">Se asigna a clientes desde el panel "Clientes".</p>
                     </div>
-                  </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -718,7 +730,6 @@
 
       useEffect(() => { lucide.createIcons(); });
 
-      // 🟢 CORRECCIÓN: Omitimos "todos" y "nadie" al armar la lista de clientes
       const clientsSet = new Set();
       routines.forEach(r => {
         if (r.assignedTo && r.assignedTo !== "todos" && r.assignedTo !== "nadie") {
@@ -747,7 +758,6 @@
         }
       };
 
-      // 🟢 CORRECCIÓN: Asignar usa "nadie" si se queda vacía
       const handleToggleRoutine = async (routine, isAssigned) => {
         let emails = routine.assignedTo && routine.assignedTo !== "todos" && routine.assignedTo !== "nadie"
           ? routine.assignedTo.split(',').map(e => e.trim().toLowerCase()).filter(e => e) 
@@ -763,7 +773,6 @@
         await saveRoutinesToDB({ ...routine, assignedTo: newAssignedTo }, false);
       };
 
-      // 🟢 CORRECCIÓN: Revocar total también respeta "nadie"
       const handleRemoveClientCompletely = async (emailToRemove) => {
         if (confirm(`¿Estás seguro de revocar TODOS los accesos a ${emailToRemove}? Ya no podrá ver ninguna rutina privada.`)) {
           
@@ -981,7 +990,6 @@
           const filteredRoutines = allRoutines.filter(routine => {
             if (isAdmin) return true; 
             
-            // 🟢 CORRECCIÓN: Filtramos usando "nadie"
             const assignedTo = routine.assignedTo || "todos";
             return assignedTo === "todos" || 
                    assignedTo.toLowerCase().includes(userEmail) ||
@@ -997,8 +1005,6 @@
         
         if (!isDelete && !routineData.owner) routineData.owner = currentUser?.email || "local_user";
         
-        // 🟢 CORRECCIÓN: Ya no forzamos "todos" si falta, confiamos en la nueva lógica de "nadie"
-
         setRoutines(prevRoutines => {
           let newRoutines;
           if (isDelete) {
@@ -1166,7 +1172,6 @@
                       </span>
                       {isAdmin && (
                         <span className="text-xs font-normal text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200" title={routine.assignedTo}>
-                          {/* 🟢 CORRECCIÓN: Evitamos renderizar si es "nadie" */}
                           {routine.assignedTo === 'todos' ? 'Pública' : `Privada (${routine.assignedTo && routine.assignedTo !== 'todos' && routine.assignedTo !== 'nadie' ? routine.assignedTo.split(',').length : 0})`}
                         </span>
                       )}
