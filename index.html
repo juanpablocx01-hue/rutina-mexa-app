@@ -63,31 +63,6 @@
       return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
     };
 
-    // --- DATOS POR DEFECTO ---
-    const defaultRoutine = {
-      id: "rutina_default_1",
-      name: "Full Body Elite (Predeterminada)",
-      assignedTo: "todos",
-      owner: "sistema",
-      exercises: [
-        { id: 1, block: "Movilidad", name: "Dead bug", sets: 1, reps: "12", intensity: "Peso corporal", rests: [], benefits: "Activa el core y mejora la coordinación sin tensión en la espalda baja.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152467/Deadbugs_h6edp9.mp4" },
-        { id: 2, block: "Movilidad", name: "Superman en cuadrupedia", sets: 1, reps: "12", intensity: "Peso corporal", rests: [], benefits: "Fortalece la cadena posterior y estabiliza la columna.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152468/Superman_cuadrupedia_contralateral_vcjnlx.mp4" },
-        { id: 3, block: "Movilidad", name: "Gato vaca", sets: 1, reps: "10", intensity: "Peso corporal", rests: [], benefits: "Moviliza la columna vertebral y libera tensión en la espalda.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152478/Ejercicio_1__Gato-Vaca_para_Mejorar_la_Movilidad_de_la_Espalda_aanzu9.mp4" },
-        { id: 4, block: "Movilidad", name: "Rotación torácica en cuadrupedia", sets: 1, reps: "10 por lado", intensity: "Peso corporal", rests: [], benefits: "Mejora la movilidad de la zona media de la espalda.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152468/ROTACI%C3%93N_TOR%C3%81CICA_EN_CUADRUPEDIA_lic223.mp4" },
-        { id: 5, block: "Movilidad", name: "Perro boca arriba a boca abajo", sets: 1, reps: "12", intensity: "Peso corporal", rests: [], benefits: "Estira isquiotibiales, gemelos y abre el pecho.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152481/Yoga_flow_-_Perro_Boca_Abajo_-_Boca_Arriba_-_Cachorro_dcgbbn.mp4" },
-        { id: 6, block: "Movilidad", name: "Movilidad cadera + Rotación en split", sets: 1, reps: "12 / 10 por lado", intensity: "Ritmo controlado", rests: [], benefits: "Abre las caderas y prepara las articulaciones para el trabajo pesado.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152469/Movilidad_CADERA_Y_TRONCO_barcelona_hybrid_fast_training_cql0sn.mp4" },
-        { id: 7, block: "Animal flow", name: "Caminata en cuadrupedia", sets: 1, reps: "30 segundos", intensity: "Peso corporal", rests: [], benefits: "Trabajo de estabilización de hombros y core en movimiento.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152476/Caminata_en_Cuadrupedia_bs0acy.mp4" },
-        { id: 8, block: "Animal flow", name: "Push up to kick out", sets: 3, reps: "12", intensity: "Peso corporal", rests: [90, 90], benefits: "Aumenta la frecuencia cardíaca y trabaja pecho y agilidad.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152476/Side_Kick_Through_Push_Up_k8gy0b.mp4" },
-        { id: 9, block: "Core", name: "Shoulder mobility", sets: 1, reps: "12", intensity: "RPE: 5", rests: [], benefits: "Lubricación de la articulación del hombro.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152479/Increase_core_strength_shoulder_mobility_-_Plate_halos_qs2ghz.mp4" },
-        { id: 10, block: "Core", name: "Crossbody chops", sets: 3, reps: "8 por lado", intensity: "RPE: 5", rests: [90, 90], benefits: "Potencia rotacional del core, ideal para transferencia a deportes.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152469/1_2_Kneeling_Plate_Chop_Up_txnxo3.mp4" },
-        { id: 11, block: "Balísticos y Plyos 1", name: "MB slam a MB vertical throw", sets: 3, reps: "6", intensity: "RPE: 6", rests: [120, 120], benefits: "Desarrollo de potencia explosiva. Máxima fuerza intencionada.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152477/MB_Slam_to_Vertical_Throw_bqkpzt.mp4" },
-        { id: 12, block: "Balísticos y Plyos 1", name: "CMJ (Salto con contramovimiento)", sets: 3, reps: "6", intensity: "Peso corporal", rests: [120, 120], benefits: "Mejora la reactividad del sistema nervioso central y potencia de piernas.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152475/How_To_Counter_Movement_Jump_fgnaz0.mp4" },
-        { id: 13, block: "Balísticos y Plyos 2", name: "SL KB snatch (Unilateral)", sets: 3, reps: "6 por lado", intensity: "RPE: 6", rests: [120, 120], benefits: "Potencia unilateral y estabilidad de cadera y hombro.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152475/Single_Leg_RDL_To_Snatch_nw909m.mp4" },
-        { id: 14, block: "Balísticos y Plyos 2", name: "Depth lateral bound", sets: 3, reps: "3 por lado", intensity: "Peso corporal", rests: [120, 120], benefits: "Fuerza y potencia en el plano frontal. Máxima explosividad.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152467/Depth_drop_to_lateral_bound_single_leg_g14utp.mp4" },
-        { id: 15, block: "Fuerza funcional", name: "SL RDL row to push press", sets: 4, reps: "6 por lado", intensity: "RPE: 8", rests: [150, 150, 150], benefits: "Ejercicio complejo que trabaja estabilidad, tirón y empuje. El rey de la rutina.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152477/Single_Leg_RDL_Row_Clean_to_balance_Press_nspoef.mp4" }
-      ]
-    };
-
     // ==========================================
     // COMPONENTE: PANTALLA DE LOGIN (SIN REGISTRO)
     // ==========================================
@@ -976,17 +951,9 @@
       const loadLocalRoutines = () => {
         try {
           const saved = window.localStorage.getItem('fuerzamexa_routines');
-          let parsed = saved ? JSON.parse(saved) : [];
-          
-          // Aseguramos que la rutina predeterminada siempre esté visible si no ha sido guardada
-          const hasDefault = parsed.some(r => r.id === defaultRoutine.id);
-          if (!hasDefault) {
-            parsed.unshift(defaultRoutine);
-          }
-          
-          setRoutines(parsed);
+          setRoutines(saved ? JSON.parse(saved) : []);
         } catch (e) {
-          setRoutines([defaultRoutine]);
+          setRoutines([]);
         }
       };
 
@@ -999,7 +966,6 @@
         } else if (data) {
           const allRoutines = data.map(row => row.routine_data);
           
-          // Aseguramos que el chequeo de email no falle por mayúsculas/minúsculas
           const userEmail = currentUser?.email?.toLowerCase() || "";
           const isAdmin = userEmail && ADMIN_EMAIL && userEmail === ADMIN_EMAIL.toLowerCase();
 
@@ -1012,13 +978,6 @@
                    routine.owner === userEmail; 
           });
 
-          // Novedad: Forzamos a que la Rutina Predeterminada siempre aparezca en tu panel
-          // (Si ya la guardaste y editaste en BD, no la duplica)
-          const hasDefault = filteredRoutines.some(r => r.id === defaultRoutine.id);
-          if (!hasDefault) {
-            filteredRoutines.unshift(defaultRoutine);
-          }
-
           setRoutines(filteredRoutines);
         }
       };
@@ -1029,7 +988,6 @@
         if (!isDelete && !routineData.owner) routineData.owner = currentUser?.email || "local_user";
         if (!isDelete && !routineData.assignedTo) routineData.assignedTo = "todos";
 
-        // Usamos una función de callback para asegurarnos de no cruzar datos si se guardan varios a la vez
         setRoutines(prevRoutines => {
           let newRoutines;
           if (isDelete) {
@@ -1047,7 +1005,6 @@
           return newRoutines;
         });
 
-        // Guardado real en Supabase
         if (isUsingCloud && supabaseClient && currentUser) {
           if (isDelete) {
             await supabaseClient.from('routines').delete().eq('id', routineData.id);
@@ -1103,7 +1060,6 @@
         return <AuthScreen supabaseClient={supabaseClient} />;
       }
 
-      // Validamos ADMIN con minúsculas por seguridad
       const isAdmin = session?.user?.email && ADMIN_EMAIL && session.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
       if (currentView === 'workout' && activeRoutine) {
