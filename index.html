@@ -18,7 +18,7 @@
   <!-- 4. Cargar Íconos -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- 5. NUEVO: Herramienta para leer archivos de Excel (.xlsx) -->
+  <!-- 5. Herramienta para leer archivos de Excel (.xlsx) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
   <!-- 6. Herramientas de Base de Datos en la Nube (SUPABASE) -->
@@ -50,7 +50,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
-    const ADMIN_EMAIL = "jantonio.as@gmail.com";  
+    const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -233,7 +233,6 @@
         }
 
         if (currentSet < currentExercise.sets) {
-          // --- DESCANSO ENTRE SERIES ---
           let restTimeForThisSet = 0;
           if (currentExercise.rests && currentExercise.rests.length > 0) {
             restTimeForThisSet = currentExercise.rests[currentSet - 1] || 0;
@@ -249,10 +248,8 @@
             setCurrentSet(prev => prev + 1);
           }
         } else {
-          // --- DESCANSO AL FINALIZAR EL EJERCICIO (NUEVO) ---
           let restAfter = currentExercise.restAfterExercise || 0;
           
-          // Solo descansamos si no es el ÚLTIMO ejercicio de toda la rutina
           if (restAfter > 0 && currentExerciseIndex < workoutPlan.length - 1) {
             setIsResting(true);
             setTimeLeft(restAfter);
@@ -419,7 +416,6 @@
                     <h2 className="text-2xl text-slate-500 font-medium mb-2">Descanso Activo</h2>
                     <div className="text-7xl md:text-8xl font-black text-blue-950 tabular-nums tracking-tighter mb-6 drop-shadow-sm">{formatTime(timeLeft)}</div>
                     
-                    {/* Texto inteligente dependiendo si es descanso entre series o final */}
                     <p className="text-lg text-slate-600 bg-slate-50 px-6 py-3 rounded-xl border border-slate-100 mb-6 font-medium">
                       {currentSet < currentExercise.sets 
                         ? <span>Prepárate para la serie <strong className="text-blue-900 text-xl">{currentSet + 1}</strong></span>
@@ -612,9 +608,13 @@
                 
                 if (sets > 1) {
                   const restsRawStr = String(colMap.rest !== undefined && row[colMap.rest] !== undefined ? row[colMap.rest] : "60");
-                  const restsRaw = restsRawStr.split(',').map(n => Number(n.trim()));
+                  
+                  // 🟢 CORRECCIÓN: Extractor de números inteligente con Expresiones Regulares
+                  const extractedNums = restsRawStr.match(/\d+/g);
+                  const restsRaw = extractedNums ? extractedNums.map(Number) : [60];
+                  
                   for(let j = 0; j < sets - 1; j++) {
-                    restsArr.push(restsRaw[j] !== undefined && !isNaN(restsRaw[j]) ? restsRaw[j] : (restsRaw[0] || 60));
+                    restsArr.push(restsRaw[j] !== undefined ? restsRaw[j] : (restsRaw[0] || 60));
                   }
                 }
                 
@@ -785,7 +785,6 @@
                     </div>
                   )}
 
-                  {/* 🟢 SECCIÓN ACTUALIZADA DE INTENSIDAD Y DESCANSO FINAL */}
                   <div className="grid grid-cols-2 gap-4 mt-2">
                     <div>
                       <label className="block text-xs font-bold text-slate-500 mb-1">Intensidad / RPE</label>
@@ -861,7 +860,7 @@
                 ) : (
                   <div className="space-y-3">
                     {exercises.map((ex, index) => (
-                      <div key={ex.id || index} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 group">
+                      <div key={ex.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 group">
                         <div className="bg-slate-100 text-slate-500 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">
                           {index + 1}
                         </div>
