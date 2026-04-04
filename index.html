@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FuerzaMexa App Pro</title>
   
-  <!-- Cargar Tailwind CSS -->
+  <!-- 1. Cargar Tailwind CSS (Esencial para los estilos) -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Cargar React -->
+  <!-- 2. Cargar React -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- Cargar Babel -->
+  <!-- 3. Cargar Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- Cargar Íconos -->
+  <!-- 4. Cargar Íconos -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- Nube: Cargar herramientas de base de datos -->
+  <!-- 5. Herramientas de Base de Datos en la Nube -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -49,21 +49,14 @@
   <script type="text/babel">
     const { useState, useEffect, useRef, useCallback } = React;
 
-    // Componente auxiliar para íconos modificado para evitar conflictos de React DOM
+    // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
       const iconRef = useRef(null);
 
       useEffect(() => {
         if (iconRef.current) {
           iconRef.current.innerHTML = `<i data-lucide="${name}"></i>`;
-          lucide.createIcons({
-            root: iconRef.current,
-            attrs: {
-              class: className,
-              width: size,
-              height: size
-            }
-          });
+          lucide.createIcons({ root: iconRef.current, attrs: { class: className, width: size, height: size } });
         }
       }, [name, size, className]);
 
@@ -113,7 +106,6 @@
 
       const timerRef = useRef(null);
       const recognitionRef = useRef(null);
-
       const currentExercise = workoutPlan[currentExerciseIndex];
 
       useEffect(() => { setIsTheaterMode(false); }, [currentExerciseIndex]);
@@ -200,7 +192,6 @@
         }
 
         if (currentSet < currentExercise.sets) {
-          // Obtener el tiempo de descanso específico para esta serie (soporta app vieja y nueva)
           let restTimeForThisSet = 0;
           if (currentExercise.rests && currentExercise.rests.length > 0) {
             restTimeForThisSet = currentExercise.rests[currentSet - 1] || 0;
@@ -445,29 +436,20 @@
       };
       const [newEx, setNewEx] = useState(defaultEx);
 
-      // Detecta cuando cambias el número de series para ajustar los cuadritos de descanso
       const handleSetsChange = (val) => {
         const newSets = Number(val);
         let newRests = [...newEx.rests];
         
         if (newSets > 1) {
-          // Si sube el número de series, copiamos el último descanso para las nuevas
           const lastRest = newRests.length > 0 ? newRests[newRests.length - 1] : 60;
-          while (newRests.length < newSets - 1) {
-            newRests.push(lastRest);
-          }
-          // Si baja el número de series, recortamos el arreglo
-          if (newRests.length > newSets - 1) {
-            newRests = newRests.slice(0, newSets - 1);
-          }
+          while (newRests.length < newSets - 1) { newRests.push(lastRest); }
+          if (newRests.length > newSets - 1) { newRests = newRests.slice(0, newSets - 1); }
         } else {
-          newRests = []; // Si es 1 serie, no hay descanso
+          newRests = []; 
         }
-        
         setNewEx({ ...newEx, sets: newSets, rests: newRests });
       };
 
-      // Modifica el tiempo de descanso de una serie específica
       const handleRestTimeChange = (index, val) => {
         const updatedRests = [...newEx.rests];
         updatedRests[index] = Number(val);
@@ -481,32 +463,26 @@
         }
 
         if (editingExerciseIndex !== null) {
-          // Actualizar ejercicio existente
           const updated = [...exercises];
           updated[editingExerciseIndex] = { ...newEx, id: exercises[editingExerciseIndex].id || Date.now() };
           setExercises(updated);
           setEditingExerciseIndex(null);
         } else {
-          // Agregar uno nuevo
           setExercises([...exercises, { ...newEx, id: Date.now() }]);
         }
-        
-        // Limpiar formulario pero mantener el bloque anterior por comodidad
         setNewEx({ ...defaultEx, block: newEx.block });
       };
 
       const handleEditExercise = (index) => {
         setNewEx(exercises[index]);
         setEditingExerciseIndex(index);
-        window.scrollTo({ top: 0, behavior: 'smooth' }); // Sube la pantalla al formulario
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       };
 
       const handleRemoveExercise = (index) => {
         const updated = [...exercises];
         updated.splice(index, 1);
         setExercises(updated);
-        
-        // Si borramos el ejercicio que estábamos editando, limpiamos el formulario
         if (editingExerciseIndex === index) {
           setEditingExerciseIndex(null);
           setNewEx(defaultEx);
@@ -578,7 +554,6 @@
                     </div>
                   </div>
 
-                  {/* NUEVA SECCIÓN: DESCANSOS PERSONALIZADOS POR SERIE */}
                   {newEx.sets > 1 && (
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-2">
                       <label className="block text-xs font-bold text-slate-500 mb-3 flex items-center gap-2">
@@ -634,14 +609,14 @@
                 ) : (
                   <div className="space-y-3">
                     {exercises.map((ex, index) => (
-                      <div key={ex.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 group">
+                      <div key={ex.id || index} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 group">
                         <div className="bg-slate-100 text-slate-500 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">
                           {index + 1}
                         </div>
                         <div className="flex-1 overflow-hidden">
                           <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">{ex.block}</p>
                           <h4 className="font-bold text-slate-800 truncate">{ex.name}</h4>
-                          <p className="text-sm text-slate-500">{ex.sets} series x {ex.reps} • {ex.rests.length > 0 ? ex.rests.join('s / ')+'s' : '0s'}</p>
+                          <p className="text-sm text-slate-500">{ex.sets} series x {ex.reps} • {ex.rests && ex.rests.length > 0 ? ex.rests.join('s / ')+'s' : '0s'}</p>
                         </div>
                         <div className="flex flex-col gap-1">
                           <button onClick={() => handleEditExercise(index)} className="text-slate-300 hover:text-blue-500 transition p-1" title="Editar">
@@ -662,16 +637,14 @@
       );
     }
 
-
     // ==========================================
     // APP PRINCIPAL (Navegación y Memoria)
     // ==========================================
     function MainApp() {
-      const [currentView, setCurrentView] = useState('home'); // 'home', 'workout', 'creator'
+      const [currentView, setCurrentView] = useState('home'); 
       const [activeRoutine, setActiveRoutine] = useState(null);
       const [routineToEdit, setRoutineToEdit] = useState(null);
 
-      // --- SISTEMA DE NUBE Y ALMACENAMIENTO ---
       const [routines, setRoutines] = useState([]);
       const [user, setUser] = useState(null);
       const [isUsingCloud, setIsUsingCloud] = useState(false);
@@ -679,12 +652,8 @@
 
       useEffect(() => { lucide.createIcons(); });
 
-      // 1. Inicializar Nube o LocalStorage
       useEffect(() => {
-        // Puedes poner la configuración de tu propia base de datos aquí cuando subas a Render
         const MI_CONFIGURACION_NUBE = null; 
-        
-        // Verifica si estamos en la plataforma (Canvas) o si pusiste tu config
         const envConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
         const finalConfig = envConfig ? JSON.parse(envConfig) : MI_CONFIGURACION_NUBE;
 
@@ -727,7 +696,6 @@
         }
       };
 
-      // 2. Escuchar cambios en la nube si está activa
       useEffect(() => {
         if (!user || !isUsingCloud || !dbRef.current) return;
         
@@ -751,7 +719,6 @@
         return () => unsub();
       }, [user, isUsingCloud]);
 
-      // Guardar en la Nube o en Local
       const saveRoutinesToDB = async (routineData, isDelete = false) => {
         if (isUsingCloud && user && dbRef.current) {
           const { doc, setDoc, deleteDoc } = window.CloudDB;
@@ -764,12 +731,10 @@
             await setDoc(routineDoc, routineData);
           }
         } else {
-          // Guardado local (si no hay nube o falla)
           let newRoutines;
           if (isDelete) {
             newRoutines = routines.filter(r => r.id !== routineData.id);
           } else {
-            // Reemplaza si existe, sino agrega
             const exists = routines.find(r => r.id === routineData.id);
             if (exists) {
               newRoutines = routines.map(r => r.id === routineData.id ? routineData : r);
@@ -811,17 +776,14 @@
         setCurrentView('creator');
       };
 
-      // VISTA: REPRODUCTOR DE RUTINA
       if (currentView === 'workout' && activeRoutine) {
         return <WorkoutPlayer routine={activeRoutine} onGoBack={() => setCurrentView('home')} />;
       }
 
-      // VISTA: CREADOR DE RUTINA
       if (currentView === 'creator') {
         return <RoutineCreator initialRoutine={routineToEdit} onSave={handleSaveNewRoutine} onCancel={() => { setCurrentView('home'); setRoutineToEdit(null); }} />;
       }
 
-      // VISTA: INICIO (DASHBOARD)
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-12 font-sans">
           <div className="max-w-5xl mx-auto">
