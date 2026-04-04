@@ -44,7 +44,7 @@
     // ==========================================
     // Pega aquí tus credenciales de Project Settings -> API
     const SUPABASE_URL = "https://bbqgjvcevlnjdqrrthhh.supabase.co"; 
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0"; 
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -425,6 +425,8 @@
     // ==========================================
     function RoutineCreator({ initialRoutine, onSave, onCancel }) {
       const [routineName, setRoutineName] = useState(initialRoutine ? initialRoutine.name : "");
+      // Nuevo campo para asignar correos
+      const [assignedTo, setAssignedTo] = useState(initialRoutine?.assignedTo || "todos"); 
       const [exercises, setExercises] = useState(initialRoutine ? initialRoutine.exercises : []);
       const [editingExerciseIndex, setEditingExerciseIndex] = useState(null);
       
@@ -493,6 +495,7 @@
         onSave({
           id: initialRoutine ? initialRoutine.id : `rutina_${Date.now()}`,
           name: routineName,
+          assignedTo: assignedTo, // Se guarda a quién está asignada
           exercises: exercises
         });
       };
@@ -512,8 +515,19 @@
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
-              <label className="block text-sm font-bold text-slate-600 mb-2">Nombre de la Rutina</label>
-              <input type="text" value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="Ej. Día de Pierna Pesado" className="w-full text-xl p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 mb-2">Nombre de la Rutina</label>
+                  <input type="text" value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="Ej. Día de Pierna Pesado" className="w-full text-xl p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">
+                    <Icon name="users" size={16} className="text-blue-500" /> Asignar a (Correos)
+                  </label>
+                  <input type="text" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} placeholder="todos, o ej: juan@mail.com, ana@mail.com" className="w-full text-base p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition" />
+                  <p className="text-xs text-slate-400 mt-2">Escribe "todos" para hacerla pública, o separa los correos por comas.</p>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -646,14 +660,10 @@
       const [isUsingCloud, setIsUsingCloud] = useState(false);
       const [supabaseClient, setSupabaseClient] = useState(null);
 
-      // Generar un ID de usuario local para separar las rutinas si se usa Supabase sin autenticación formal
+      // Usaremos un ID fijo para tu cuenta personal.
+      // Así, no importa si entras desde PC o celular, siempre verán las mismas rutinas.
       const getLocalUserId = () => {
-        let uid = window.localStorage.getItem('fuerzamexa_uid');
-        if (!uid) {
-          uid = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-          window.localStorage.setItem('fuerzamexa_uid', uid);
-        }
-        return uid;
+        return 'carlos_admin_fuerzamexa';
       };
 
       useEffect(() => { lucide.createIcons(); });
