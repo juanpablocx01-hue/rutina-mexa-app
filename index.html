@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FuerzaMexa App Pro</title>
   
-  <!-- 1. Cargar Tailwind CSS (Esencial para los estilos) -->
+  <!-- 1. Cargar Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
   <!-- 2. Cargar React -->
@@ -40,11 +40,14 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ==========================================
-    // ☁️ CONFIGURACIÓN DE SUPABASE
+    // ☁️ CONFIGURACIÓN DE SUPABASE Y ADMIN
     // ==========================================
-    // Pega aquí tus credenciales de Project Settings -> API
+    // 1. Pega aquí tus credenciales de Supabase (Project Settings -> API)
     const SUPABASE_URL = "https://bbqgjvcevlnjdqrrthhh.supabase.co"; 
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
+    
+    // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
+    const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -64,6 +67,8 @@
     const defaultRoutine = {
       id: "rutina_default_1",
       name: "Full Body Elite (Predeterminada)",
+      assignedTo: "todos",
+      owner: "sistema",
       exercises: [
         { id: 1, block: "Movilidad", name: "Dead bug", sets: 1, reps: "12", intensity: "Peso corporal", rests: [], benefits: "Activa el core y mejora la coordinación sin tensión en la espalda baja.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152467/Deadbugs_h6edp9.mp4" },
         { id: 2, block: "Movilidad", name: "Superman en cuadrupedia", sets: 1, reps: "12", intensity: "Peso corporal", rests: [], benefits: "Fortalece la cadena posterior y estabiliza la columna.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152468/Superman_cuadrupedia_contralateral_vcjnlx.mp4" },
@@ -82,6 +87,79 @@
         { id: 15, block: "Fuerza funcional", name: "SL RDL row to push press", sets: 4, reps: "6 por lado", intensity: "RPE: 8", rests: [150, 150, 150], benefits: "Ejercicio complejo que trabaja estabilidad, tirón y empuje. El rey de la rutina.", videoUrl: "https://res.cloudinary.com/dxkrhdljz/video/upload/v1775152477/Single_Leg_RDL_Row_Clean_to_balance_Press_nspoef.mp4" }
       ]
     };
+
+    // ==========================================
+    // COMPONENTE: PANTALLA DE LOGIN / REGISTRO
+    // ==========================================
+    function AuthScreen({ supabaseClient }) {
+      const [isLogin, setIsLogin] = useState(true);
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [loading, setLoading] = useState(false);
+      const [errorMsg, setErrorMsg] = useState('');
+
+      useEffect(() => { lucide.createIcons(); });
+
+      const handleAuth = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setErrorMsg('');
+
+        try {
+          if (isLogin) {
+            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+          } else {
+            const { error } = await supabaseClient.auth.signUp({ email, password });
+            if (error) throw error;
+            else alert("¡Registro exitoso! Ya puedes iniciar sesión.");
+          }
+        } catch (error) {
+          setErrorMsg(error.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
+          <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 w-full max-w-md">
+            <div className="text-center mb-8">
+              <h1 className="text-4xl font-black text-blue-950 tracking-tight mb-2">FuerzaMexa <span className="text-blue-600">Pro</span></h1>
+              <p className="text-slate-500">{isLogin ? 'Inicia sesión en tu cuenta' : 'Crea una cuenta nueva'}</p>
+            </div>
+
+            {errorMsg && (
+              <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm font-medium mb-6 border border-red-100 flex items-start gap-2">
+                <Icon name="alert-circle" size={18} className="shrink-0 mt-0.5" /> {errorMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleAuth} className="space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Correo electrónico</label>
+                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="ejemplo@correo.com" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Contraseña</label>
+                <input type="password" required minLength="6" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="••••••••" />
+              </div>
+              
+              <button type="submit" disabled={loading} className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3.5 rounded-xl transition shadow-md disabled:opacity-70">
+                {loading ? 'Procesando...' : (isLogin ? 'Ingresar' : 'Registrarme')}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center text-sm text-slate-500">
+              {isLogin ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+              <button type="button" onClick={() => { setIsLogin(!isLogin); setErrorMsg(''); }} className="text-blue-600 font-bold hover:underline">
+                {isLogin ? 'Regístrate aquí' : 'Inicia sesión'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     // ==========================================
     // COMPONENTE: REPRODUCTOR DE RUTINA
@@ -425,7 +503,6 @@
     // ==========================================
     function RoutineCreator({ initialRoutine, onSave, onCancel }) {
       const [routineName, setRoutineName] = useState(initialRoutine ? initialRoutine.name : "");
-      // Nuevo campo para asignar correos
       const [assignedTo, setAssignedTo] = useState(initialRoutine?.assignedTo || "todos"); 
       const [exercises, setExercises] = useState(initialRoutine ? initialRoutine.exercises : []);
       const [editingExerciseIndex, setEditingExerciseIndex] = useState(null);
@@ -495,7 +572,7 @@
         onSave({
           id: initialRoutine ? initialRoutine.id : `rutina_${Date.now()}`,
           name: routineName,
-          assignedTo: assignedTo, // Se guarda a quién está asignada
+          assignedTo: assignedTo,
           exercises: exercises
         });
       };
@@ -660,11 +737,8 @@
       const [isUsingCloud, setIsUsingCloud] = useState(false);
       const [supabaseClient, setSupabaseClient] = useState(null);
 
-      // Usaremos un ID fijo para tu cuenta personal.
-      // Así, no importa si entras desde PC o celular, siempre verán las mismas rutinas.
-      const getLocalUserId = () => {
-        return 'carlos_admin_fuerzamexa';
-      };
+      const [session, setSession] = useState(null);
+      const [authInitialized, setAuthInitialized] = useState(false);
 
       useEffect(() => { lucide.createIcons(); });
 
@@ -674,8 +748,24 @@
           const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
           setSupabaseClient(client);
           setIsUsingCloud(true);
-          fetchSupabaseRoutines(client);
+
+          // Verificar sesión
+          client.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setAuthInitialized(true);
+            if (session) fetchSupabaseRoutines(client, session.user);
+          });
+
+          // Escuchar login/logout
+          const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+            if (session) fetchSupabaseRoutines(client, session.user);
+            else setRoutines([]);
+          });
+
+          return () => subscription.unsubscribe();
         } else {
+          setAuthInitialized(true);
           loadLocalRoutines();
         }
       }, []);
@@ -689,52 +779,57 @@
         }
       };
 
-      const fetchSupabaseRoutines = async (client) => {
-        const uid = getLocalUserId();
-        const { data, error } = await client
-          .from('routines')
-          .select('routine_data')
-          .eq('user_id', uid);
+      const fetchSupabaseRoutines = async (client, currentUser) => {
+        const { data, error } = await client.from('routines').select('routine_data');
 
         if (error) {
           console.error("Error cargando de Supabase:", error);
-          loadLocalRoutines(); // Respaldo local si falla
-        } else if (data && data.length > 0) {
-          setRoutines(data.map(row => row.routine_data));
-        } else {
-          setRoutines([defaultRoutine]);
+          loadLocalRoutines(); 
+        } else if (data) {
+          const allRoutines = data.map(row => row.routine_data);
+          const userEmail = currentUser?.email || "";
+          const isAdmin = userEmail === ADMIN_EMAIL;
+
+          const filteredRoutines = allRoutines.filter(routine => {
+            if (isAdmin) return true; // Admin ve todo
+            
+            const assignedTo = routine.assignedTo || "todos";
+            return assignedTo.toLowerCase().includes("todos") || 
+                   assignedTo.toLowerCase().includes(userEmail.toLowerCase()) ||
+                   routine.owner === userEmail; 
+          });
+
+          setRoutines(filteredRoutines.length > 0 ? filteredRoutines : [defaultRoutine]);
         }
       };
 
       const saveRoutinesToDB = async (routineData, isDelete = false) => {
-        // Actualizamos la UI localmente al instante para que se sienta súper rápido (Optimistic Update)
+        const currentUser = session?.user;
+        
+        if (!isDelete && !routineData.owner) routineData.owner = currentUser?.email || "local_user";
+        if (!isDelete && !routineData.assignedTo) routineData.assignedTo = "todos";
+
         let newRoutines;
         if (isDelete) {
           newRoutines = routines.filter(r => r.id !== routineData.id);
         } else {
           const exists = routines.find(r => r.id === routineData.id);
-          if (exists) {
-            newRoutines = routines.map(r => r.id === routineData.id ? routineData : r);
-          } else {
-            newRoutines = [...routines, routineData];
-          }
+          if (exists) newRoutines = routines.map(r => r.id === routineData.id ? routineData : r);
+          else newRoutines = [...routines, routineData];
         }
         setRoutines(newRoutines);
 
-        // Guardamos en Supabase si está activo
-        if (isUsingCloud && supabaseClient) {
-          const uid = getLocalUserId();
+        if (isUsingCloud && supabaseClient && currentUser) {
           if (isDelete) {
-            await supabaseClient.from('routines').delete().eq('id', routineData.id).eq('user_id', uid);
+            await supabaseClient.from('routines').delete().eq('id', routineData.id);
           } else {
             await supabaseClient.from('routines').upsert({
               id: routineData.id,
-              user_id: uid,
+              user_id: currentUser.id,
               routine_data: routineData
             });
           }
         } else {
-          // Guardado local tradicional
           window.localStorage.setItem('fuerzamexa_routines', JSON.stringify(newRoutines));
         }
       };
@@ -768,6 +863,21 @@
         setCurrentView('creator');
       };
 
+      const handleLogout = async () => {
+        if (supabaseClient) {
+          await supabaseClient.auth.signOut();
+          setCurrentView('home');
+        }
+      };
+
+      if (!authInitialized) return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-bold">Cargando FuerzaMexa...</div>;
+
+      if (isUsingCloud && !session) {
+        return <AuthScreen supabaseClient={supabaseClient} />;
+      }
+
+      const isAdmin = session?.user?.email === ADMIN_EMAIL;
+
       if (currentView === 'workout' && activeRoutine) {
         return <WorkoutPlayer routine={activeRoutine} onGoBack={() => setCurrentView('home')} />;
       }
@@ -782,22 +892,28 @@
             <header className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
               <div>
                 <h1 className="text-4xl md:text-5xl font-black text-blue-950 mb-2 tracking-tight">FuerzaMexa <span className="text-blue-600">Pro</span></h1>
-                <p className="text-slate-500 font-medium text-lg flex items-center gap-2">
-                  Tu centro de entrenamiento personal. 
-                  {isUsingCloud ? (
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-md font-bold flex items-center gap-1 border border-green-200" title="Sincronizando con Supabase">
-                      <Icon name="cloud" size={14} /> Sincronizado en la Nube
-                    </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-slate-500 font-medium text-lg">Tu centro de entrenamiento personal.</p>
+                  {isUsingCloud && session ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-md font-bold flex items-center gap-1 border border-green-200">
+                        <Icon name="user-check" size={14} /> {isAdmin ? 'ADMIN' : session.user.email}
+                      </span>
+                      <button onClick={handleLogout} className="text-xs font-bold text-slate-400 hover:text-red-500 transition underline">Cerrar Sesión</button>
+                    </div>
                   ) : (
-                    <span className="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded-md font-bold flex items-center gap-1 border border-slate-300" title="Añade tus claves de Supabase para activar">
+                    <span className="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded-md font-bold flex items-center gap-1 border border-slate-300">
                       <Icon name="hard-drive" size={14} /> Modo Local
                     </span>
                   )}
-                </p>
+                </div>
               </div>
-              <button onClick={handleOpenCreator} className="bg-blue-900 hover:bg-blue-800 text-white px-6 py-4 rounded-2xl font-bold transition shadow-lg flex items-center gap-2 w-full md:w-auto justify-center">
-                <Icon name="plus" size={24} /> Crear Nueva Rutina
-              </button>
+              
+              {(!isUsingCloud || isAdmin) && (
+                <button onClick={handleOpenCreator} className="bg-blue-900 hover:bg-blue-800 text-white px-6 py-4 rounded-2xl font-bold transition shadow-lg flex items-center gap-2 w-full md:w-auto justify-center">
+                  <Icon name="plus" size={24} /> Crear Nueva Rutina
+                </button>
+              )}
             </header>
 
             <h2 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2">
@@ -821,14 +937,18 @@
                       <div className="bg-blue-50 p-3 rounded-2xl text-blue-900">
                         <Icon name="play" size={28} className="fill-current" />
                       </div>
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => handleEditRoutine(routine, e)} className="text-slate-300 hover:text-blue-500 p-2 transition" title="Editar rutina">
-                          <Icon name="edit" size={20} />
-                        </button>
-                        <button onClick={(e) => handleDeleteRoutine(routine.id, e)} className="text-slate-300 hover:text-red-500 p-2 transition" title="Eliminar rutina">
-                          <Icon name="trash-2" size={20} />
-                        </button>
-                      </div>
+                      
+                      {/* Ocultar botones de edición si NO es Admin */}
+                      {(!isUsingCloud || isAdmin) && (
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={(e) => handleEditRoutine(routine, e)} className="text-slate-300 hover:text-blue-500 p-2 transition" title="Editar rutina">
+                            <Icon name="edit" size={20} />
+                          </button>
+                          <button onClick={(e) => handleDeleteRoutine(routine.id, e)} className="text-slate-300 hover:text-red-500 p-2 transition" title="Eliminar rutina">
+                            <Icon name="trash-2" size={20} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                     
                     <h3 className="text-2xl font-bold text-blue-950 mb-2 leading-tight">{routine.name}</h3>
@@ -836,8 +956,13 @@
                       <Icon name="activity" size={16} /> {routine.exercises.length} Ejercicios
                     </p>
                     
-                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center text-blue-600 font-bold text-sm group-hover:text-blue-800 transition-colors">
-                      Iniciar Entrenamiento <Icon name="arrow-right" size={16} className="ml-2 transform group-hover:translate-x-1 transition-transform" />
+                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between text-blue-600 font-bold text-sm group-hover:text-blue-800 transition-colors">
+                      <span className="flex items-center">
+                        Iniciar Entrenamiento <Icon name="arrow-right" size={16} className="ml-2 transform group-hover:translate-x-1 transition-transform" />
+                      </span>
+                      {isAdmin && routine.assignedTo !== "todos" && (
+                        <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-1 rounded" title={routine.assignedTo}>Privada</span>
+                      )}
                     </div>
                   </div>
                 ))}
