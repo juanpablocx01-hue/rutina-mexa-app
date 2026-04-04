@@ -47,7 +47,7 @@
     // ==========================================
     // 1. Pega aquí tus credenciales de Supabase (Project Settings -> API)
     const SUPABASE_URL = "https://bbqgjvcevlnjdqrrthhh.supabase.co"; 
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0"; 
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
     const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
@@ -422,12 +422,17 @@
                       <div className="bg-blue-600/80 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10"><span className="text-white font-bold text-lg">Serie {currentSet} / {currentExercise.sets}</span></div>
                     </div>
                   )}
+                  {/* 🟢 REPRODUCTOR INTELIGENTE DE MEDIA (Soporta Video o Imagen) */}
                   {currentExercise.videoUrl ? (
-                    <video key={currentExercise.videoUrl} className="absolute top-0 left-0 w-full h-full object-contain" src={currentExercise.videoUrl} autoPlay loop muted={isVideoMuted} playsInline controls />
+                    currentExercise.videoUrl.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i) ? (
+                      <img key={currentExercise.videoUrl} className="absolute top-0 left-0 w-full h-full object-contain" src={currentExercise.videoUrl} alt={currentExercise.name} />
+                    ) : (
+                      <video key={currentExercise.videoUrl} className="absolute top-0 left-0 w-full h-full object-contain" src={currentExercise.videoUrl} autoPlay loop muted={isVideoMuted} playsInline controls />
+                    )
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
                       <Icon name="play-circle" size={48} className="mb-4 opacity-50" />
-                      <p>Video no disponible</p>
+                      <p>Multimedia no disponible</p>
                     </div>
                   )}
                 </div>
@@ -526,7 +531,6 @@
         }
       };
 
-      // 🟢 NUEVA FUNCIÓN: LEER EXCEL Y CONVERTIR A EJERCICIOS (Avanzada)
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -541,7 +545,6 @@
             const data = window.XLSX.utils.sheet_to_json(ws);
 
             const importedExercises = data.map((row, index) => {
-              // Función inteligente para encontrar columnas aunque escribas en minúsculas o con sinónimos
               const getValue = (keys) => {
                 for (let key of Object.keys(row)) {
                   if (keys.some(k => key.toLowerCase().trim().includes(k))) {
@@ -571,14 +574,12 @@
                 intensity: String(getValue(['intensidad', 'rpe', 'peso']) || 'Moderado'),
                 rests: restsArr,
                 benefits: String(getValue(['beneficio', 'nota']) || ''),
-                videoUrl: String(getValue(['video', 'enlace', 'url', 'link']) || '')
+                videoUrl: String(getValue(['video', 'enlace', 'url', 'link', 'imagen', 'foto']) || '')
               };
             });
 
-            // Agregamos los ejercicios
             setExercises(prev => [...prev, ...importedExercises]);
             
-            // 🟢 MAGIA: Si el nombre de la rutina está vacío, usamos el nombre del archivo Excel
             const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
             setRoutineName(prev => prev ? prev : fileNameWithoutExt);
 
@@ -587,20 +588,17 @@
             console.error(error);
             alert("Hubo un error al leer el archivo. Asegúrate de usar la plantilla correcta.");
           }
-          e.target.value = null; // Resetea el input
+          e.target.value = null; 
         };
         reader.readAsBinaryString(file);
       };
 
-      // 🟢 CORRECCIÓN MAGISTRAL: 100% a prueba de fallos
       const handleSaveRoutine = () => {
         if (!routineName) return alert("Por favor, ponle nombre a la rutina.");
         if (exercises.length === 0) return alert("Agrega al menos un ejercicio.");
         
         let finalAssignedTo = "todos";
         if (!isPublic) {
-          // Si es privada, conservamos los correos que ya tenía. 
-          // Si estaba asignada a "todos" o no tenía correos, le ponemos obligatoriamente "nadie".
           if (initialRoutine?.assignedTo && initialRoutine.assignedTo !== "todos" && initialRoutine.assignedTo !== "nadie") {
             finalAssignedTo = initialRoutine.assignedTo;
           } else {
@@ -637,7 +635,6 @@
                   <input type="text" value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="Ej. Día de Pierna Pesado" className="w-full text-xl p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition" />
                 </div>
                 
-                {/* 🟢 RECONSTRUCCIÓN: Botones interactivos puros (Eliminamos el input radio nativo) */}
                 <div className="flex flex-col gap-2">
                   <label className="block text-sm font-bold text-slate-600 mb-1 flex items-center gap-2">
                     <Icon name="globe" size={16} className="text-blue-500" /> Visibilidad de la rutina
@@ -729,7 +726,6 @@
                     </div>
                   )}
 
-                  {/* 🟢 NUEVO: MENÚ DESPLEGABLE CON SUGERENCIAS PARA LA INTENSIDAD */}
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1 mt-2">Intensidad / Esfuerzo Percibido</label>
                     <input 
@@ -757,8 +753,9 @@
                     <textarea rows="2" value={newEx.benefits} onChange={e => setNewEx({...newEx, benefits: e.target.value})} placeholder="¿Para qué sirve este ejercicio?" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 mt-2">Enlace del Video (MP4)</label>
-                    <input type="url" value={newEx.videoUrl} onChange={e => setNewEx({...newEx, videoUrl: e.target.value})} placeholder="https://mi-video.mp4" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    {/* 🟢 NUEVO: Etiqueta y placeholder actualizados para incluir imágenes */}
+                    <label className="block text-xs font-bold text-slate-500 mb-1 mt-2">Enlace (Video o Imagen)</label>
+                    <input type="url" value={newEx.videoUrl} onChange={e => setNewEx({...newEx, videoUrl: e.target.value})} placeholder="https://mi-archivo.mp4 o .jpg" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
 
                   <button onClick={handleAddExercise} className={`w-full mt-4 text-white py-4 rounded-xl font-bold transition shadow-md flex justify-center items-center gap-2 ${editingExerciseIndex !== null ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-900 hover:bg-slate-800'}`}>
@@ -773,7 +770,6 @@
                   <span>Ejercicios de la Rutina</span>
                   
                   <div className="flex items-center gap-3">
-                    {/* 🟢 NUEVO BOTÓN DE IMPORTAR EXCEL */}
                     <label className="cursor-pointer bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-300 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition border border-green-200 shadow-sm">
                       <Icon name="file-spreadsheet" size={18} /> 
                       <span className="hidden sm:inline">Importar Excel</span>
