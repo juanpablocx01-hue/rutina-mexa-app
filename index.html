@@ -46,11 +46,11 @@
     // ☁️ CONFIGURACIÓN DE SUPABASE Y ADMIN
     // ==========================================
     // 1. Pega aquí tus credenciales de Supabase (Project Settings -> API)
-    const SUPABASE_URL = "https://bbqgjvcevlnjdqrrthhh.supabase.co"; 
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
+    const SUPABASE_URL = ""; 
+    const SUPABASE_ANON_KEY = ""; 
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
-    const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
+    const ADMIN_EMAIL = "tu_correo@gmail.com"; 
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -551,6 +551,7 @@
         }
       };
 
+      // 🟢 LECTURA BLINDADA PARA IMPORTAR EL EXCEL
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -585,7 +586,6 @@
                     if (colName.includes('serie') || colName.includes('set')) colMap.sets = colIdx;
                     if (colName.includes('repeticion') || colName.includes('reps')) colMap.reps = colIdx;
                     
-                    // 🟢 CORRECCIÓN: Mapeo de columnas sin conflictos
                     if (colName.includes('final') || colName.includes('transición') || colName.includes('post') || colName.includes('entre ejercicio') || colName === 'descanso final') {
                       colMap.restAfter = colIdx;
                     } else if (colName.includes('descanso') || colName.includes('rest') || colName.includes('pausa')) {
@@ -609,22 +609,22 @@
                 const rawName = row[colMap.name];
                 if (!rawName || String(rawName).trim() === '') continue; 
                 
-                const sets = Number(row[colMap.sets]) || 1;
+                const sets = Number(String(row[colMap.sets]).match(/\d+/)?.[0] || 1);
                 let restsArr = [];
                 
                 if (sets > 1) {
                   let rawVal = colMap.rest !== undefined && row[colMap.rest] !== undefined ? row[colMap.rest] : "60";
                   
-                  // 🟢 CORRECCIÓN: Manejo del formato numérico decimal de Excel en Español (ej. 30.6 para 30,60)
+                  // Blindaje para español (convierte posibles decimales en texto con guiones)
                   if (typeof rawVal === 'number' && !Number.isInteger(rawVal)) {
                       let parts = String(rawVal).split('.');
                       let decPart = parts[1];
-                      if (decPart && decPart.length === 1) decPart += "0"; // Si era 30.6 lo vuelve 30.60
+                      if (decPart && decPart.length === 1) decPart += "0"; 
                       rawVal = `${parts[0]}-${decPart}`;
                   }
                   
+                  // Extraer los puros números (ignora letras, comas o puntos)
                   const restsRawStr = String(rawVal);
-                  // Extrae puramente los números. Ejemplo: "30-60" o "30, 60" -> ["30", "60"]
                   const extractedNums = restsRawStr.match(/\d+/g);
                   const restsRaw = extractedNums ? extractedNums.map(Number) : [60];
                   
@@ -637,6 +637,10 @@
                   }
                 }
                 
+                // Extraer el Descanso Final asegurando que sólo agarramos el número
+                let restAfterStr = String(colMap.restAfter !== undefined && row[colMap.restAfter] !== undefined ? row[colMap.restAfter] : "0");
+                let parsedRestAfter = Number(restAfterStr.match(/\d+/)?.[0] || 0);
+
                 importedExercises.push({
                   id: Date.now() + Math.random(), 
                   block: String(colMap.block !== undefined && row[colMap.block] !== undefined ? row[colMap.block] : 'General'),
@@ -645,7 +649,7 @@
                   reps: String(colMap.reps !== undefined && row[colMap.reps] !== undefined ? row[colMap.reps] : '10'),
                   intensity: String(colMap.intensity !== undefined && row[colMap.intensity] !== undefined ? row[colMap.intensity] : 'Moderado'),
                   rests: restsArr,
-                  restAfterExercise: Number(colMap.restAfter !== undefined && row[colMap.restAfter] !== undefined ? row[colMap.restAfter] : 0),
+                  restAfterExercise: parsedRestAfter,
                   benefits: String(colMap.benefits !== undefined && row[colMap.benefits] !== undefined ? row[colMap.benefits] : ''),
                   videoUrl: String(colMap.video !== undefined && row[colMap.video] !== undefined ? row[colMap.video] : '')
                 });
