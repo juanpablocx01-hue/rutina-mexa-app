@@ -18,18 +18,8 @@
   <!-- 4. Cargar Íconos -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- 5. Herramientas de Base de Datos en la Nube -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    window.CloudDB = {
-      initializeApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged,
-      getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot
-    };
-    window.dispatchEvent(new Event('cloud-ready'));
-  </script>
+  <!-- 5. Herramientas de Base de Datos en la Nube (SUPABASE) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     body {
@@ -48,6 +38,13 @@
 
   <script type="text/babel">
     const { useState, useEffect, useRef, useCallback } = React;
+
+    // ==========================================
+    // ☁️ CONFIGURACIÓN DE SUPABASE
+    // ==========================================
+    // Pega aquí tus credenciales de Project Settings -> API
+    const SUPABASE_URL = "https://bbqgjvcevlnjdqrrthhh.supabase.co"; 
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0"; 
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -646,42 +643,28 @@
       const [routineToEdit, setRoutineToEdit] = useState(null);
 
       const [routines, setRoutines] = useState([]);
-      const [user, setUser] = useState(null);
       const [isUsingCloud, setIsUsingCloud] = useState(false);
-      const dbRef = useRef(null);
+      const [supabaseClient, setSupabaseClient] = useState(null);
+
+      // Generar un ID de usuario local para separar las rutinas si se usa Supabase sin autenticación formal
+      const getLocalUserId = () => {
+        let uid = window.localStorage.getItem('fuerzamexa_uid');
+        if (!uid) {
+          uid = 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+          window.localStorage.setItem('fuerzamexa_uid', uid);
+        }
+        return uid;
+      };
 
       useEffect(() => { lucide.createIcons(); });
 
+      // 1. Inicialización de la Nube o Local
       useEffect(() => {
-        const MI_CONFIGURACION_NUBE = null; 
-        const envConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
-        const finalConfig = envConfig ? JSON.parse(envConfig) : MI_CONFIGURACION_NUBE;
-
-        if (finalConfig && window.CloudDB) {
+        if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
+          const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          setSupabaseClient(client);
           setIsUsingCloud(true);
-          const { initializeApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, getFirestore } = window.CloudDB;
-          
-          try {
-            const app = initializeApp(finalConfig);
-            const auth = getAuth(app);
-            dbRef.current = getFirestore(app);
-
-            const initAuth = async () => {
-              if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-              } else {
-                await signInAnonymously(auth);
-              }
-            };
-            initAuth();
-
-            const unsubscribe = onAuthStateChanged(auth, setUser);
-            return () => unsubscribe();
-          } catch (e) {
-            console.error("Error conectando a la nube, usando almacenamiento local.");
-            setIsUsingCloud(false);
-            loadLocalRoutines();
-          }
+          fetchSupabaseRoutines(client);
         } else {
           loadLocalRoutines();
         }
@@ -696,53 +679,52 @@
         }
       };
 
-      useEffect(() => {
-        if (!user || !isUsingCloud || !dbRef.current) return;
-        
-        const { collection, onSnapshot } = window.CloudDB;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fuerza-mexa-app';
-        const routinesCollection = collection(dbRef.current, 'artifacts', appId, 'users', user.uid, 'routines');
+      const fetchSupabaseRoutines = async (client) => {
+        const uid = getLocalUserId();
+        const { data, error } = await client
+          .from('routines')
+          .select('routine_data')
+          .eq('user_id', uid);
 
-        const unsub = onSnapshot(routinesCollection, (snapshot) => {
-          const loadedRoutines = [];
-          snapshot.forEach(doc => loadedRoutines.push(doc.data()));
-          
-          if (loadedRoutines.length === 0) {
-            setRoutines([defaultRoutine]);
-          } else {
-            setRoutines(loadedRoutines);
-          }
-        }, (err) => {
-          console.error("Error leyendo de la nube:", err);
-        });
-
-        return () => unsub();
-      }, [user, isUsingCloud]);
+        if (error) {
+          console.error("Error cargando de Supabase:", error);
+          loadLocalRoutines(); // Respaldo local si falla
+        } else if (data && data.length > 0) {
+          setRoutines(data.map(row => row.routine_data));
+        } else {
+          setRoutines([defaultRoutine]);
+        }
+      };
 
       const saveRoutinesToDB = async (routineData, isDelete = false) => {
-        if (isUsingCloud && user && dbRef.current) {
-          const { doc, setDoc, deleteDoc } = window.CloudDB;
-          const appId = typeof __app_id !== 'undefined' ? __app_id : 'fuerza-mexa-app';
-          const routineDoc = doc(dbRef.current, 'artifacts', appId, 'users', user.uid, 'routines', routineData.id);
-          
-          if (isDelete) {
-            await deleteDoc(routineDoc);
+        // Actualizamos la UI localmente al instante para que se sienta súper rápido (Optimistic Update)
+        let newRoutines;
+        if (isDelete) {
+          newRoutines = routines.filter(r => r.id !== routineData.id);
+        } else {
+          const exists = routines.find(r => r.id === routineData.id);
+          if (exists) {
+            newRoutines = routines.map(r => r.id === routineData.id ? routineData : r);
           } else {
-            await setDoc(routineDoc, routineData);
+            newRoutines = [...routines, routineData];
+          }
+        }
+        setRoutines(newRoutines);
+
+        // Guardamos en Supabase si está activo
+        if (isUsingCloud && supabaseClient) {
+          const uid = getLocalUserId();
+          if (isDelete) {
+            await supabaseClient.from('routines').delete().eq('id', routineData.id).eq('user_id', uid);
+          } else {
+            await supabaseClient.from('routines').upsert({
+              id: routineData.id,
+              user_id: uid,
+              routine_data: routineData
+            });
           }
         } else {
-          let newRoutines;
-          if (isDelete) {
-            newRoutines = routines.filter(r => r.id !== routineData.id);
-          } else {
-            const exists = routines.find(r => r.id === routineData.id);
-            if (exists) {
-              newRoutines = routines.map(r => r.id === routineData.id ? routineData : r);
-            } else {
-              newRoutines = [...routines, routineData];
-            }
-          }
-          setRoutines(newRoutines);
+          // Guardado local tradicional
           window.localStorage.setItem('fuerzamexa_routines', JSON.stringify(newRoutines));
         }
       };
@@ -792,12 +774,12 @@
                 <h1 className="text-4xl md:text-5xl font-black text-blue-950 mb-2 tracking-tight">FuerzaMexa <span className="text-blue-600">Pro</span></h1>
                 <p className="text-slate-500 font-medium text-lg flex items-center gap-2">
                   Tu centro de entrenamiento personal. 
-                  {isUsingCloud && user ? (
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-md font-bold flex items-center gap-1 border border-green-200">
+                  {isUsingCloud ? (
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-md font-bold flex items-center gap-1 border border-green-200" title="Sincronizando con Supabase">
                       <Icon name="cloud" size={14} /> Sincronizado en la Nube
                     </span>
                   ) : (
-                    <span className="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded-md font-bold flex items-center gap-1 border border-slate-300">
+                    <span className="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded-md font-bold flex items-center gap-1 border border-slate-300" title="Añade tus claves de Supabase para activar">
                       <Icon name="hard-drive" size={14} /> Modo Local
                     </span>
                   )}
