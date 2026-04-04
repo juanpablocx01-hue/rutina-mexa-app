@@ -523,14 +523,25 @@
         }
       };
 
+      // 🟢 CORRECCIÓN: EVITAMOS TEXTOS VACÍOS USANDO "nadie" COMO PALABRA CLAVE
       const handleSaveRoutine = () => {
         if (!routineName) return alert("Por favor, ponle nombre a la rutina.");
         if (exercises.length === 0) return alert("Agrega al menos un ejercicio.");
         
+        let finalAssignedTo = "todos";
+        if (!isPublic) {
+          // Si era privada y ya tenía correos, los conservamos. Si no tenía a nadie, guardamos "nadie"
+          if (initialRoutine && initialRoutine.assignedTo && initialRoutine.assignedTo !== "todos" && initialRoutine.assignedTo !== "nadie") {
+            finalAssignedTo = initialRoutine.assignedTo;
+          } else {
+            finalAssignedTo = "nadie";
+          }
+        }
+
         onSave({
           id: initialRoutine ? initialRoutine.id : `rutina_${Date.now()}`,
           name: routineName,
-          assignedTo: isPublic ? "todos" : (initialRoutine && initialRoutine.assignedTo !== "todos" ? initialRoutine.assignedTo : ""),
+          assignedTo: finalAssignedTo,
           exercises: exercises
         });
       };
@@ -707,9 +718,10 @@
 
       useEffect(() => { lucide.createIcons(); });
 
+      // 🟢 CORRECCIÓN: Omitimos "todos" y "nadie" al armar la lista de clientes
       const clientsSet = new Set();
       routines.forEach(r => {
-        if (r.assignedTo && r.assignedTo !== "todos") {
+        if (r.assignedTo && r.assignedTo !== "todos" && r.assignedTo !== "nadie") {
           r.assignedTo.split(',').forEach(email => {
             const trimmed = email.trim().toLowerCase();
             if (trimmed) clientsSet.add(trimmed);
@@ -735,8 +747,9 @@
         }
       };
 
+      // 🟢 CORRECCIÓN: Asignar usa "nadie" si se queda vacía
       const handleToggleRoutine = async (routine, isAssigned) => {
-        let emails = routine.assignedTo && routine.assignedTo !== "todos" 
+        let emails = routine.assignedTo && routine.assignedTo !== "todos" && routine.assignedTo !== "nadie"
           ? routine.assignedTo.split(',').map(e => e.trim().toLowerCase()).filter(e => e) 
           : [];
           
@@ -746,15 +759,16 @@
           emails = emails.filter(e => e !== selectedClient);
         }
         
-        const newAssignedTo = emails.join(', ');
+        const newAssignedTo = emails.length > 0 ? emails.join(', ') : "nadie";
         await saveRoutinesToDB({ ...routine, assignedTo: newAssignedTo }, false);
       };
 
+      // 🟢 CORRECCIÓN: Revocar total también respeta "nadie"
       const handleRemoveClientCompletely = async (emailToRemove) => {
         if (confirm(`¿Estás seguro de revocar TODOS los accesos a ${emailToRemove}? Ya no podrá ver ninguna rutina privada.`)) {
           
           const routinesToUpdate = routines.filter(r => {
-            if (!r.assignedTo || r.assignedTo === "todos") return false;
+            if (!r.assignedTo || r.assignedTo === "todos" || r.assignedTo === "nadie") return false;
             const emails = r.assignedTo.split(',').map(e => e.trim().toLowerCase());
             return emails.includes(emailToRemove);
           });
@@ -762,7 +776,7 @@
           for (const routine of routinesToUpdate) {
             let emails = routine.assignedTo.split(',').map(e => e.trim().toLowerCase());
             emails = emails.filter(e => e !== emailToRemove);
-            const newAssignedTo = emails.join(', ');
+            const newAssignedTo = emails.length > 0 ? emails.join(', ') : "nadie";
             await saveRoutinesToDB({ ...routine, assignedTo: newAssignedTo }, false);
           }
 
@@ -853,7 +867,7 @@
                     <div className="space-y-4">
                       {routines.map(routine => {
                         const isPublic = routine.assignedTo === "todos";
-                        const assignedEmails = routine.assignedTo ? routine.assignedTo.split(',').map(e=>e.trim().toLowerCase()) : [];
+                        const assignedEmails = routine.assignedTo && routine.assignedTo !== "todos" && routine.assignedTo !== "nadie" ? routine.assignedTo.split(',').map(e=>e.trim().toLowerCase()) : [];
                         const isAssigned = isPublic || assignedEmails.includes(selectedClient);
 
                         return (
@@ -965,10 +979,11 @@
           const isAdmin = userEmail && ADMIN_EMAIL && userEmail === ADMIN_EMAIL.toLowerCase();
 
           const filteredRoutines = allRoutines.filter(routine => {
-            if (isAdmin) return true; // El administrador SIEMPRE ve todo
+            if (isAdmin) return true; 
             
-            const assignedTo = routine.assignedTo !== undefined ? routine.assignedTo : "todos";
-            return assignedTo.toLowerCase().includes("todos") || 
+            // 🟢 CORRECCIÓN: Filtramos usando "nadie"
+            const assignedTo = routine.assignedTo || "todos";
+            return assignedTo === "todos" || 
                    assignedTo.toLowerCase().includes(userEmail) ||
                    routine.owner === userEmail; 
           });
@@ -982,8 +997,7 @@
         
         if (!isDelete && !routineData.owner) routineData.owner = currentUser?.email || "local_user";
         
-        // CORRECCIÓN AQUÍ: Ahora respeta si la asignación está vacía (Privada sin clientes)
-        if (!isDelete && routineData.assignedTo === undefined) routineData.assignedTo = "todos";
+        // 🟢 CORRECCIÓN: Ya no forzamos "todos" si falta, confiamos en la nueva lógica de "nadie"
 
         setRoutines(prevRoutines => {
           let newRoutines;
@@ -1152,7 +1166,8 @@
                       </span>
                       {isAdmin && (
                         <span className="text-xs font-normal text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200" title={routine.assignedTo}>
-                          {routine.assignedTo === 'todos' ? 'Pública' : `Privada (${routine.assignedTo && routine.assignedTo !== 'todos' ? routine.assignedTo.split(',').length : 0})`}
+                          {/* 🟢 CORRECCIÓN: Evitamos renderizar si es "nadie" */}
+                          {routine.assignedTo === 'todos' ? 'Pública' : `Privada (${routine.assignedTo && routine.assignedTo !== 'todos' && routine.assignedTo !== 'nadie' ? routine.assignedTo.split(',').length : 0})`}
                         </span>
                       )}
                     </div>
