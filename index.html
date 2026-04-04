@@ -967,7 +967,7 @@
           const filteredRoutines = allRoutines.filter(routine => {
             if (isAdmin) return true; // El administrador SIEMPRE ve todo
             
-            const assignedTo = routine.assignedTo || "todos";
+            const assignedTo = routine.assignedTo !== undefined ? routine.assignedTo : "todos";
             return assignedTo.toLowerCase().includes("todos") || 
                    assignedTo.toLowerCase().includes(userEmail) ||
                    routine.owner === userEmail; 
