@@ -584,8 +584,14 @@
                     if (colName.includes('ejercicio') || colName.includes('nombre') || colName.includes('movimiento')) colMap.name = colIdx;
                     if (colName.includes('serie') || colName.includes('set')) colMap.sets = colIdx;
                     if (colName.includes('repeticion') || colName.includes('reps')) colMap.reps = colIdx;
-                    if (colName.includes('descanso final') || colName.includes('descanso entre') || colName.includes('transición') || colName.includes('post')) colMap.restAfter = colIdx;
-                    else if (colName.includes('descanso') || colName.includes('rest')) colMap.rest = colIdx;
+                    
+                    // 🟢 CORRECCIÓN: Mapeo de columnas sin conflictos
+                    if (colName.includes('final') || colName.includes('transición') || colName.includes('post') || colName.includes('entre ejercicio') || colName === 'descanso final') {
+                      colMap.restAfter = colIdx;
+                    } else if (colName.includes('descanso') || colName.includes('rest') || colName.includes('pausa')) {
+                      colMap.rest = colIdx;
+                    }
+                    
                     if (colName.includes('intensidad') || colName.includes('peso') || colName.includes('rpe')) colMap.intensity = colIdx;
                     if (colName.includes('nota') || colName.includes('beneficio')) colMap.benefits = colIdx;
                     if (colName.includes('video') || colName.includes('enlace') || colName.includes('link') || colName.includes('url') || colName.includes('imagen')) colMap.video = colIdx;
@@ -607,14 +613,27 @@
                 let restsArr = [];
                 
                 if (sets > 1) {
-                  const restsRawStr = String(colMap.rest !== undefined && row[colMap.rest] !== undefined ? row[colMap.rest] : "60");
+                  let rawVal = colMap.rest !== undefined && row[colMap.rest] !== undefined ? row[colMap.rest] : "60";
                   
-                  // 🟢 CORRECCIÓN: Extractor de números inteligente con Expresiones Regulares
+                  // 🟢 CORRECCIÓN: Manejo del formato numérico decimal de Excel en Español (ej. 30.6 para 30,60)
+                  if (typeof rawVal === 'number' && !Number.isInteger(rawVal)) {
+                      let parts = String(rawVal).split('.');
+                      let decPart = parts[1];
+                      if (decPart && decPart.length === 1) decPart += "0"; // Si era 30.6 lo vuelve 30.60
+                      rawVal = `${parts[0]}-${decPart}`;
+                  }
+                  
+                  const restsRawStr = String(rawVal);
+                  // Extrae puramente los números. Ejemplo: "30-60" o "30, 60" -> ["30", "60"]
                   const extractedNums = restsRawStr.match(/\d+/g);
                   const restsRaw = extractedNums ? extractedNums.map(Number) : [60];
                   
                   for(let j = 0; j < sets - 1; j++) {
-                    restsArr.push(restsRaw[j] !== undefined ? restsRaw[j] : (restsRaw[0] || 60));
+                    let val = restsRaw[j];
+                    if (val === undefined) {
+                      val = restsRaw[restsRaw.length - 1] || 60;
+                    }
+                    restsArr.push(val);
                   }
                 }
                 
