@@ -579,24 +579,22 @@
                 if (rowStr.some(c => c.includes('ejercicio') || c.includes('nombre') || c.includes('repeticion') || c.includes('reps'))) {
                   headerRowIdx = i;
                   
-                  // 🟢 CORRECCIÓN BLINDADA: Ahora solo tomamos la PRIMERA columna que coincida, 
-                  // ignorando columnas duplicadas al final del Excel.
+                  // 🟢 CORRECCIÓN: Búsqueda de columnas a prueba de errores tipográficos y columnas fantasma.
                   rowStr.forEach((colName, colIdx) => {
-                    if (colMap.block === undefined && (colName.includes('bloque') || colName.includes('tipo') || colName.includes('semana') || colName.includes('día'))) colMap.block = colIdx;
-                    if (colMap.name === undefined && (colName.includes('ejercicio') || colName.includes('nombre') || colName.includes('movimiento'))) colMap.name = colIdx;
-                    if (colMap.sets === undefined && (colName.includes('serie') || colName.includes('set'))) colMap.sets = colIdx;
-                    if (colMap.reps === undefined && (colName.includes('repeticion') || colName.includes('reps'))) colMap.reps = colIdx;
+                    if (colMap.block === undefined && /bloque|tipo|semana|día|dia/i.test(colName)) colMap.block = colIdx;
+                    if (colMap.name === undefined && /ejercicio|nombre|movimiento/i.test(colName)) colMap.name = colIdx;
+                    if (colMap.sets === undefined && /serie|set/i.test(colName)) colMap.sets = colIdx;
+                    if (colMap.reps === undefined && /repeticion|reps/i.test(colName)) colMap.reps = colIdx;
                     
-                    // Diferenciar claramente entre Descanso Final y Descanso de Series
-                    if (colMap.restAfter === undefined && (colName.includes('final') || colName.includes('transición') || colName.includes('post') || colName.includes('entre ejercicio') || colName === 'descanso final')) {
+                    if (colMap.restAfter === undefined && (/final|transición|transicion|post|entre ejercicio/i.test(colName) || colName === 'descanso final')) {
                       colMap.restAfter = colIdx;
-                    } else if (colMap.rest === undefined && (colName.includes('descanso') || colName.includes('rest') || colName.includes('pausa'))) {
+                    } else if (colMap.rest === undefined && /descanso|descanzo|rest|pausa|recuperacion|recuperación|tiempo/i.test(colName)) {
                       colMap.rest = colIdx;
                     }
                     
-                    if (colMap.intensity === undefined && (colName.includes('intensidad') || colName.includes('peso') || colName.includes('rpe'))) colMap.intensity = colIdx;
-                    if (colMap.benefits === undefined && (colName.includes('nota') || colName.includes('beneficio'))) colMap.benefits = colIdx;
-                    if (colMap.video === undefined && (colName.includes('video') || colName.includes('enlace') || colName.includes('link') || colName.includes('url') || colName.includes('imagen'))) colMap.video = colIdx;
+                    if (colMap.intensity === undefined && /intensidad|peso|rpe/i.test(colName)) colMap.intensity = colIdx;
+                    if (colMap.benefits === undefined && /nota|beneficio|detalle/i.test(colName)) colMap.benefits = colIdx;
+                    if (colMap.video === undefined && /video|enlace|link|url|imagen|foto/i.test(colName)) colMap.video = colIdx;
                   });
                   break;
                 }
@@ -617,6 +615,7 @@
                 if (sets > 1) {
                   let rawVal = colMap.rest !== undefined && row[colMap.rest] !== undefined ? row[colMap.rest] : "60";
                   
+                  // 🟢 CORRECCIÓN: Transformar el formato de número decimal de Excel Español de regreso a texto
                   if (typeof rawVal === 'number' && !Number.isInteger(rawVal)) {
                       let parts = String(rawVal).split('.');
                       let decPart = parts[1];
@@ -624,6 +623,7 @@
                       rawVal = `${parts[0]}-${decPart}`;
                   }
                   
+                  // Extrae pura y exclusivamente los números del texto
                   const restsRawStr = String(rawVal);
                   const extractedNums = restsRawStr.match(/\d+/g);
                   const restsRaw = extractedNums ? extractedNums.map(Number) : [60];
