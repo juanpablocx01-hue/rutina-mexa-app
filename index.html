@@ -44,7 +44,7 @@
     // ==========================================
     // 1. Pega aquí tus credenciales de Supabase (Project Settings -> API)
     const SUPABASE_URL = "https://bbqgjvcevlnjdqrrthhh.supabase.co"; 
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0"; 
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
     const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
@@ -490,7 +490,11 @@
     // ==========================================
     function RoutineCreator({ initialRoutine, onSave, onCancel }) {
       const [routineName, setRoutineName] = useState(initialRoutine ? initialRoutine.name : "");
-      const [assignedTo, setAssignedTo] = useState(initialRoutine?.assignedTo || "todos"); 
+      
+      // Novedad: Interfaz de visibilidad más amigable e intuitiva
+      const [visibility, setVisibility] = useState(initialRoutine?.assignedTo === "todos" || !initialRoutine ? "public" : "private");
+      const [assignedEmails, setAssignedEmails] = useState(initialRoutine?.assignedTo !== "todos" ? (initialRoutine?.assignedTo || "") : ""); 
+      
       const [exercises, setExercises] = useState(initialRoutine ? initialRoutine.exercises : []);
       const [editingExerciseIndex, setEditingExerciseIndex] = useState(null);
       
@@ -559,7 +563,8 @@
         onSave({
           id: initialRoutine ? initialRoutine.id : `rutina_${Date.now()}`,
           name: routineName,
-          assignedTo: assignedTo,
+          // Guardamos internamente "todos" o los correos dependiendo del botón seleccionado
+          assignedTo: visibility === "public" ? "todos" : assignedEmails,
           exercises: exercises
         });
       };
@@ -579,17 +584,40 @@
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-slate-600 mb-2">Nombre de la Rutina</label>
                   <input type="text" value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="Ej. Día de Pierna Pesado" className="w-full text-xl p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition" />
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">
+                  <label className="block text-sm font-bold text-slate-600 mb-3 flex items-center gap-2">
                     <Icon name="users" size={16} className="text-blue-500" /> ¿Quién puede ver esta rutina?
                   </label>
-                  <input type="text" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} placeholder="todos, o ej: juan@mail.com, ana@mail.com" className="w-full text-base p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition" />
-                  <p className="text-xs text-slate-400 mt-2">Escribe <strong>todos</strong> (pública) o los correos de tus clientes separados por comas.</p>
+                  
+                  <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                    <label className={`flex-1 flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${visibility === 'public' ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                      <input type="radio" name="visibility" value="public" checked={visibility === 'public'} onChange={() => setVisibility('public')} className="w-5 h-5 text-blue-600" />
+                      <div>
+                        <p className="font-bold text-blue-950">Todos mis clientes</p>
+                        <p className="text-xs text-slate-500">Cualquier alumno registrado podrá verla.</p>
+                      </div>
+                    </label>
+                    <label className={`flex-1 flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${visibility === 'private' ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                      <input type="radio" name="visibility" value="private" checked={visibility === 'private'} onChange={() => setVisibility('private')} className="w-5 h-5 text-blue-600" />
+                      <div>
+                        <p className="font-bold text-blue-950">Clientes Específicos</p>
+                        <p className="text-xs text-slate-500">Rutinas personalizadas (1 a 1).</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {visibility === 'private' && (
+                    <div className="animate-in fade-in slide-in-from-top-2">
+                      <input type="text" value={assignedEmails} onChange={(e) => setAssignedEmails(e.target.value)} placeholder="Ej: juan@mail.com, ana@mail.com" className="w-full text-base p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition" />
+                      <p className="text-xs text-slate-400 mt-2">Escribe los correos de tus alumnos VIP separados por comas.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
