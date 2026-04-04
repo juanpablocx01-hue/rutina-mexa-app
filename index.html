@@ -18,7 +18,10 @@
   <!-- 4. Cargar Íconos -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- 5. Herramientas de Base de Datos en la Nube (SUPABASE) -->
+  <!-- 5. NUEVO: Herramienta para leer archivos de Excel (.xlsx) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <!-- 6. Herramientas de Base de Datos en la Nube (SUPABASE) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
@@ -44,7 +47,7 @@
     // ==========================================
     // 1. Pega aquí tus credenciales de Supabase (Project Settings -> API)
     const SUPABASE_URL = "https://bbqgjvcevlnjdqrrthhh.supabase.co"; 
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0"; 
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
     const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
@@ -523,6 +526,72 @@
         }
       };
 
+      // 🟢 NUEVA FUNCIÓN: LEER EXCEL Y CONVERTIR A EJERCICIOS (Avanzada)
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const bstr = evt.target.result;
+            const wb = window.XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const data = window.XLSX.utils.sheet_to_json(ws);
+
+            const importedExercises = data.map((row, index) => {
+              // Función inteligente para encontrar columnas aunque escribas en minúsculas o con sinónimos
+              const getValue = (keys) => {
+                for (let key of Object.keys(row)) {
+                  if (keys.some(k => key.toLowerCase().trim().includes(k))) {
+                    return row[key];
+                  }
+                }
+                return undefined;
+              };
+
+              const sets = Number(getValue(['series', 'set']) || 1);
+              let restsArr = [];
+              
+              if (sets > 1) {
+                const restsRawStr = String(getValue(['descanso', 'rest']) || "60");
+                const restsRaw = restsRawStr.split(',').map(n => Number(n.trim()));
+                for(let i=0; i < sets - 1; i++) {
+                  restsArr.push(restsRaw[i] !== undefined && !isNaN(restsRaw[i]) ? restsRaw[i] : (restsRaw[0] || 60));
+                }
+              }
+
+              return {
+                id: Date.now() + index,
+                block: getValue(['bloque', 'tipo']) || 'General',
+                name: getValue(['ejercicio', 'nombre', 'movimiento']) || 'Ejercicio sin nombre',
+                sets: sets,
+                reps: String(getValue(['repeticion', 'reps']) || '10'),
+                intensity: String(getValue(['intensidad', 'rpe', 'peso']) || 'Moderado'),
+                rests: restsArr,
+                benefits: String(getValue(['beneficio', 'nota']) || ''),
+                videoUrl: String(getValue(['video', 'enlace', 'url', 'link']) || '')
+              };
+            });
+
+            // Agregamos los ejercicios
+            setExercises(prev => [...prev, ...importedExercises]);
+            
+            // 🟢 MAGIA: Si el nombre de la rutina está vacío, usamos el nombre del archivo Excel
+            const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+            setRoutineName(prev => prev ? prev : fileNameWithoutExt);
+
+            alert(`¡Éxito! Se importaron ${importedExercises.length} ejercicios.`);
+          } catch (error) {
+            console.error(error);
+            alert("Hubo un error al leer el archivo. Asegúrate de usar la plantilla correcta.");
+          }
+          e.target.value = null; // Resetea el input
+        };
+        reader.readAsBinaryString(file);
+      };
+
       // 🟢 CORRECCIÓN MAGISTRAL: 100% a prueba de fallos
       const handleSaveRoutine = () => {
         if (!routineName) return alert("Por favor, ponle nombre a la rutina.");
@@ -660,16 +729,35 @@
                     </div>
                   )}
 
+                  {/* 🟢 NUEVO: MENÚ DESPLEGABLE CON SUGERENCIAS PARA LA INTENSIDAD */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 mt-2">Intensidad / RPE</label>
-                    <input type="text" value={newEx.intensity} onChange={e => setNewEx({...newEx, intensity: e.target.value})} placeholder="Ej. RPE 8, Pesado..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <label className="block text-xs font-bold text-slate-500 mb-1 mt-2">Intensidad / Esfuerzo Percibido</label>
+                    <input 
+                      list="intensity-options" 
+                      type="text" 
+                      value={newEx.intensity} 
+                      onChange={e => setNewEx({...newEx, intensity: e.target.value})} 
+                      placeholder="Selecciona o escribe una intensidad..." 
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    />
+                    <datalist id="intensity-options">
+                      <option value="Peso Corporal" />
+                      <option value="Ligero (RIR 4+ / RPE 5-6)" />
+                      <option value="Moderado (RIR 3 / RPE 7)" />
+                      <option value="Pesado (RIR 2 / RPE 8)" />
+                      <option value="Muy Pesado (RIR 1 / RPE 9)" />
+                      <option value="Al Fallo Máximo (RIR 0 / RPE 10)" />
+                      <option value="70% del 1RM" />
+                      <option value="80% del 1RM" />
+                    </datalist>
                   </div>
+
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">Beneficios / Notas</label>
+                    <label className="block text-xs font-bold text-slate-500 mb-1 mt-2">Beneficios / Notas</label>
                     <textarea rows="2" value={newEx.benefits} onChange={e => setNewEx({...newEx, benefits: e.target.value})} placeholder="¿Para qué sirve este ejercicio?" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">Enlace del Video (MP4)</label>
+                    <label className="block text-xs font-bold text-slate-500 mb-1 mt-2">Enlace del Video (MP4)</label>
                     <input type="url" value={newEx.videoUrl} onChange={e => setNewEx({...newEx, videoUrl: e.target.value})} placeholder="https://mi-video.mp4" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
 
@@ -681,14 +769,25 @@
 
               {/* Lista de Ejercicios Agregados */}
               <div>
-                <h2 className="text-xl font-bold text-blue-950 mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-blue-950 mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <span>Ejercicios de la Rutina</span>
-                  <span className="bg-blue-100 text-blue-900 text-sm py-1 px-3 rounded-full">{exercises.length} agregados</span>
+                  
+                  <div className="flex items-center gap-3">
+                    {/* 🟢 NUEVO BOTÓN DE IMPORTAR EXCEL */}
+                    <label className="cursor-pointer bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-300 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition border border-green-200 shadow-sm">
+                      <Icon name="file-spreadsheet" size={18} /> 
+                      <span className="hidden sm:inline">Importar Excel</span>
+                      <span className="sm:hidden">Importar</span>
+                      <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleFileUpload} />
+                    </label>
+
+                    <span className="bg-blue-100 text-blue-900 text-sm py-2 px-4 rounded-xl font-bold">{exercises.length} agregados</span>
+                  </div>
                 </h2>
                 
                 {exercises.length === 0 ? (
                   <div className="bg-slate-100 border-2 border-dashed border-slate-300 rounded-2xl p-10 text-center text-slate-500">
-                    Aún no has agregado ejercicios. Configura uno a la izquierda y presiona Añadir.
+                    Aún no has agregado ejercicios. Agrégalos a mano o usa el botón de <strong>Importar Excel</strong> arriba.
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1005,6 +1104,8 @@
         
         if (!isDelete && !routineData.owner) routineData.owner = currentUser?.email || "local_user";
         
+        if (!isDelete && routineData.assignedTo === undefined) routineData.assignedTo = "todos";
+
         setRoutines(prevRoutines => {
           let newRoutines;
           if (isDelete) {
