@@ -50,7 +50,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
-    const ADMIN_EMAIL = "jantonio.as@gmail.com";
+    const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -551,7 +551,6 @@
         }
       };
 
-      // 🟢 LECTURA BLINDADA PARA IMPORTAR EL EXCEL
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -580,21 +579,24 @@
                 if (rowStr.some(c => c.includes('ejercicio') || c.includes('nombre') || c.includes('repeticion') || c.includes('reps'))) {
                   headerRowIdx = i;
                   
+                  // 🟢 CORRECCIÓN BLINDADA: Ahora solo tomamos la PRIMERA columna que coincida, 
+                  // ignorando columnas duplicadas al final del Excel.
                   rowStr.forEach((colName, colIdx) => {
-                    if (colName.includes('bloque') || colName.includes('tipo') || colName.includes('semana') || colName.includes('día')) colMap.block = colIdx;
-                    if (colName.includes('ejercicio') || colName.includes('nombre') || colName.includes('movimiento')) colMap.name = colIdx;
-                    if (colName.includes('serie') || colName.includes('set')) colMap.sets = colIdx;
-                    if (colName.includes('repeticion') || colName.includes('reps')) colMap.reps = colIdx;
+                    if (colMap.block === undefined && (colName.includes('bloque') || colName.includes('tipo') || colName.includes('semana') || colName.includes('día'))) colMap.block = colIdx;
+                    if (colMap.name === undefined && (colName.includes('ejercicio') || colName.includes('nombre') || colName.includes('movimiento'))) colMap.name = colIdx;
+                    if (colMap.sets === undefined && (colName.includes('serie') || colName.includes('set'))) colMap.sets = colIdx;
+                    if (colMap.reps === undefined && (colName.includes('repeticion') || colName.includes('reps'))) colMap.reps = colIdx;
                     
-                    if (colName.includes('final') || colName.includes('transición') || colName.includes('post') || colName.includes('entre ejercicio') || colName === 'descanso final') {
+                    // Diferenciar claramente entre Descanso Final y Descanso de Series
+                    if (colMap.restAfter === undefined && (colName.includes('final') || colName.includes('transición') || colName.includes('post') || colName.includes('entre ejercicio') || colName === 'descanso final')) {
                       colMap.restAfter = colIdx;
-                    } else if (colName.includes('descanso') || colName.includes('rest') || colName.includes('pausa')) {
+                    } else if (colMap.rest === undefined && (colName.includes('descanso') || colName.includes('rest') || colName.includes('pausa'))) {
                       colMap.rest = colIdx;
                     }
                     
-                    if (colName.includes('intensidad') || colName.includes('peso') || colName.includes('rpe')) colMap.intensity = colIdx;
-                    if (colName.includes('nota') || colName.includes('beneficio')) colMap.benefits = colIdx;
-                    if (colName.includes('video') || colName.includes('enlace') || colName.includes('link') || colName.includes('url') || colName.includes('imagen')) colMap.video = colIdx;
+                    if (colMap.intensity === undefined && (colName.includes('intensidad') || colName.includes('peso') || colName.includes('rpe'))) colMap.intensity = colIdx;
+                    if (colMap.benefits === undefined && (colName.includes('nota') || colName.includes('beneficio'))) colMap.benefits = colIdx;
+                    if (colMap.video === undefined && (colName.includes('video') || colName.includes('enlace') || colName.includes('link') || colName.includes('url') || colName.includes('imagen'))) colMap.video = colIdx;
                   });
                   break;
                 }
@@ -615,7 +617,6 @@
                 if (sets > 1) {
                   let rawVal = colMap.rest !== undefined && row[colMap.rest] !== undefined ? row[colMap.rest] : "60";
                   
-                  // Blindaje para español (convierte posibles decimales en texto con guiones)
                   if (typeof rawVal === 'number' && !Number.isInteger(rawVal)) {
                       let parts = String(rawVal).split('.');
                       let decPart = parts[1];
@@ -623,7 +624,6 @@
                       rawVal = `${parts[0]}-${decPart}`;
                   }
                   
-                  // Extraer los puros números (ignora letras, comas o puntos)
                   const restsRawStr = String(rawVal);
                   const extractedNums = restsRawStr.match(/\d+/g);
                   const restsRaw = extractedNums ? extractedNums.map(Number) : [60];
@@ -637,7 +637,6 @@
                   }
                 }
                 
-                // Extraer el Descanso Final asegurando que sólo agarramos el número
                 let restAfterStr = String(colMap.restAfter !== undefined && row[colMap.restAfter] !== undefined ? row[colMap.restAfter] : "0");
                 let parsedRestAfter = Number(restAfterStr.match(/\d+/)?.[0] || 0);
 
