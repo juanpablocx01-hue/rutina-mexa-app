@@ -750,18 +750,15 @@
         await saveRoutinesToDB({ ...routine, assignedTo: newAssignedTo }, false);
       };
 
-      // 🔴 NUEVA FUNCIÓN: ELIMINAR CLIENTE POR COMPLETO
       const handleRemoveClientCompletely = async (emailToRemove) => {
         if (confirm(`¿Estás seguro de revocar TODOS los accesos a ${emailToRemove}? Ya no podrá ver ninguna rutina privada.`)) {
           
-          // Buscamos todas las rutinas donde este cliente esté asignado
           const routinesToUpdate = routines.filter(r => {
             if (!r.assignedTo || r.assignedTo === "todos") return false;
             const emails = r.assignedTo.split(',').map(e => e.trim().toLowerCase());
             return emails.includes(emailToRemove);
           });
 
-          // Le quitamos el correo a cada rutina y la guardamos
           for (const routine of routinesToUpdate) {
             let emails = routine.assignedTo.split(',').map(e => e.trim().toLowerCase());
             emails = emails.filter(e => e !== emailToRemove);
@@ -769,7 +766,6 @@
             await saveRoutinesToDB({ ...routine, assignedTo: newAssignedTo }, false);
           }
 
-          // Si el cliente eliminado era el que teníamos seleccionado, lo deseleccionamos
           if (selectedClient === emailToRemove) {
             setSelectedClient(null);
           }
@@ -827,7 +823,6 @@
                           <span className="truncate font-medium">{email}</span>
                         </button>
                         
-                        {/* 🔴 NUEVO BOTÓN: Eliminar cliente de la lista */}
                         <button 
                           onClick={(e) => { e.stopPropagation(); handleRemoveClientCompletely(email); }}
                           className={`p-2 transition rounded-full ${selectedClient === email ? 'text-blue-300 hover:text-red-400 hover:bg-blue-800' : 'text-slate-400 hover:text-red-500 hover:bg-slate-200'}`}
@@ -986,7 +981,9 @@
         const currentUser = session?.user;
         
         if (!isDelete && !routineData.owner) routineData.owner = currentUser?.email || "local_user";
-        if (!isDelete && !routineData.assignedTo) routineData.assignedTo = "todos";
+        
+        // CORRECCIÓN AQUÍ: Ahora respeta si la asignación está vacía (Privada sin clientes)
+        if (!isDelete && routineData.assignedTo === undefined) routineData.assignedTo = "todos";
 
         setRoutines(prevRoutines => {
           let newRoutines;
