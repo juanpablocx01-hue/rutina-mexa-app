@@ -483,7 +483,6 @@
     function RoutineCreator({ initialRoutine, onSave, onCancel }) {
       const [routineName, setRoutineName] = useState(initialRoutine ? initialRoutine.name : "");
       
-      // Solo indicamos si la rutina es Pública o Privada (se asigna a clientes desde otra pantalla)
       const [isPublic, setIsPublic] = useState(initialRoutine?.assignedTo === "todos" || !initialRoutine);
       
       const [exercises, setExercises] = useState(initialRoutine ? initialRoutine.exercises : []);
@@ -556,7 +555,6 @@
         onSave({
           id: initialRoutine ? initialRoutine.id : `rutina_${Date.now()}`,
           name: routineName,
-          // Si es pública "todos", si es privada la dejamos vacía "" y se asignará en el Manager
           assignedTo: isPublic ? "todos" : (initialRoutine && initialRoutine.assignedTo !== "todos" ? initialRoutine.assignedTo : ""),
           exercises: exercises
         });
@@ -734,7 +732,6 @@
 
       useEffect(() => { lucide.createIcons(); });
 
-      // Extraer todos los correos únicos a partir de las rutinas asignadas
       const clientsSet = new Set();
       routines.forEach(r => {
         if (r.assignedTo && r.assignedTo !== "todos") {
@@ -745,7 +742,6 @@
         }
       });
       
-      // Si el administrador buscó a alguien nuevo, lo agregamos a la lista visualmente
       if (selectedClient) clientsSet.add(selectedClient.toLowerCase());
       
       const clients = Array.from(clientsSet).sort();
@@ -764,7 +760,7 @@
         }
       };
 
-      const handleToggleRoutine = (routine, isAssigned) => {
+      const handleToggleRoutine = async (routine, isAssigned) => {
         let emails = routine.assignedTo && routine.assignedTo !== "todos" 
           ? routine.assignedTo.split(',').map(e => e.trim().toLowerCase()).filter(e => e) 
           : [];
@@ -776,14 +772,39 @@
         }
         
         const newAssignedTo = emails.join(', ');
-        saveRoutinesToDB({ ...routine, assignedTo: newAssignedTo }, false);
+        await saveRoutinesToDB({ ...routine, assignedTo: newAssignedTo }, false);
+      };
+
+      // 🔴 NUEVA FUNCIÓN: ELIMINAR CLIENTE POR COMPLETO
+      const handleRemoveClientCompletely = async (emailToRemove) => {
+        if (confirm(`¿Estás seguro de revocar TODOS los accesos a ${emailToRemove}? Ya no podrá ver ninguna rutina privada.`)) {
+          
+          // Buscamos todas las rutinas donde este cliente esté asignado
+          const routinesToUpdate = routines.filter(r => {
+            if (!r.assignedTo || r.assignedTo === "todos") return false;
+            const emails = r.assignedTo.split(',').map(e => e.trim().toLowerCase());
+            return emails.includes(emailToRemove);
+          });
+
+          // Le quitamos el correo a cada rutina y la guardamos
+          for (const routine of routinesToUpdate) {
+            let emails = routine.assignedTo.split(',').map(e => e.trim().toLowerCase());
+            emails = emails.filter(e => e !== emailToRemove);
+            const newAssignedTo = emails.join(', ');
+            await saveRoutinesToDB({ ...routine, assignedTo: newAssignedTo }, false);
+          }
+
+          // Si el cliente eliminado era el que teníamos seleccionado, lo deseleccionamos
+          if (selectedClient === emailToRemove) {
+            setSelectedClient(null);
+          }
+        }
       };
 
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-10 font-sans">
           <div className="max-w-6xl mx-auto flex flex-col h-full">
             
-            {/* Header */}
             <div className="flex items-center gap-4 mb-8">
               <button onClick={onGoBack} className="p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-100 transition shadow-sm">
                 <Icon name="arrow-left" size={24} />
@@ -795,7 +816,6 @@
             </div>
 
             <div className="flex flex-col md:flex-row gap-6">
-              {/* Sidebar: Lista de Clientes */}
               <div className="w-full md:w-1/3 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm h-fit md:min-h-[60vh] flex flex-col">
                 <div className="mb-4">
                   <div className="relative">
@@ -821,22 +841,31 @@
                     <p className="text-center text-slate-400 text-sm mt-10">Aún no tienes clientes asignados. Búscalos arriba para comenzar.</p>
                   ) : (
                     filteredClients.map(email => (
-                      <button 
-                        key={email} 
-                        onClick={() => handleSelectClient(email)}
-                        className={`w-full text-left p-4 rounded-xl transition flex items-center gap-3 border ${selectedClient === email ? 'bg-blue-900 text-white border-blue-900 shadow-md' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'}`}
-                      >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${selectedClient === email ? 'bg-blue-800 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                          <Icon name="user" size={16} />
-                        </div>
-                        <span className="truncate font-medium">{email}</span>
-                      </button>
+                      <div key={email} className={`w-full flex items-center justify-between p-2 rounded-xl transition border ${selectedClient === email ? 'bg-blue-900 border-blue-900 shadow-md' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>
+                        <button 
+                          onClick={() => handleSelectClient(email)}
+                          className={`flex-1 flex items-center gap-3 p-2 text-left ${selectedClient === email ? 'text-white' : 'text-slate-700'}`}
+                        >
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${selectedClient === email ? 'bg-blue-800 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                            <Icon name="user" size={16} />
+                          </div>
+                          <span className="truncate font-medium">{email}</span>
+                        </button>
+                        
+                        {/* 🔴 NUEVO BOTÓN: Eliminar cliente de la lista */}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleRemoveClientCompletely(email); }}
+                          className={`p-2 transition rounded-full ${selectedClient === email ? 'text-blue-300 hover:text-red-400 hover:bg-blue-800' : 'text-slate-400 hover:text-red-500 hover:bg-slate-200'}`}
+                          title="Revocar acceso total a este cliente"
+                        >
+                          <Icon name="user-minus" size={18} />
+                        </button>
+                      </div>
                     ))
                   )}
                 </div>
               </div>
 
-              {/* Contenido Principal: Rutinas del cliente */}
               <div className="w-full md:w-2/3 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm h-[70vh] overflow-y-auto custom-scrollbar">
                 {!selectedClient ? (
                   <div className="h-full flex flex-col items-center justify-center text-slate-400">
@@ -919,21 +948,18 @@
 
       useEffect(() => { lucide.createIcons(); });
 
-      // 1. Inicialización de la Nube o Local
       useEffect(() => {
         if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
           const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
           setSupabaseClient(client);
           setIsUsingCloud(true);
 
-          // Verificar sesión
           client.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             setAuthInitialized(true);
             if (session) fetchSupabaseRoutines(client, session.user);
           });
 
-          // Escuchar login/logout
           const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
             setSession(session);
             if (session) fetchSupabaseRoutines(client, session.user);
@@ -950,7 +976,15 @@
       const loadLocalRoutines = () => {
         try {
           const saved = window.localStorage.getItem('fuerzamexa_routines');
-          setRoutines(saved ? JSON.parse(saved) : [defaultRoutine]);
+          let parsed = saved ? JSON.parse(saved) : [];
+          
+          // Aseguramos que la rutina predeterminada siempre esté visible si no ha sido guardada
+          const hasDefault = parsed.some(r => r.id === defaultRoutine.id);
+          if (!hasDefault) {
+            parsed.unshift(defaultRoutine);
+          }
+          
+          setRoutines(parsed);
         } catch (e) {
           setRoutines([defaultRoutine]);
         }
@@ -964,19 +998,28 @@
           loadLocalRoutines(); 
         } else if (data) {
           const allRoutines = data.map(row => row.routine_data);
-          const userEmail = currentUser?.email || "";
-          const isAdmin = userEmail === ADMIN_EMAIL;
+          
+          // Aseguramos que el chequeo de email no falle por mayúsculas/minúsculas
+          const userEmail = currentUser?.email?.toLowerCase() || "";
+          const isAdmin = userEmail && ADMIN_EMAIL && userEmail === ADMIN_EMAIL.toLowerCase();
 
           const filteredRoutines = allRoutines.filter(routine => {
-            if (isAdmin) return true; // Admin ve todo
+            if (isAdmin) return true; // El administrador SIEMPRE ve todo
             
             const assignedTo = routine.assignedTo || "todos";
             return assignedTo.toLowerCase().includes("todos") || 
-                   assignedTo.toLowerCase().includes(userEmail.toLowerCase()) ||
+                   assignedTo.toLowerCase().includes(userEmail) ||
                    routine.owner === userEmail; 
           });
 
-          setRoutines(filteredRoutines.length > 0 ? filteredRoutines : [defaultRoutine]);
+          // Novedad: Forzamos a que la Rutina Predeterminada siempre aparezca en tu panel
+          // (Si ya la guardaste y editaste en BD, no la duplica)
+          const hasDefault = filteredRoutines.some(r => r.id === defaultRoutine.id);
+          if (!hasDefault) {
+            filteredRoutines.unshift(defaultRoutine);
+          }
+
+          setRoutines(filteredRoutines);
         }
       };
 
@@ -986,16 +1029,25 @@
         if (!isDelete && !routineData.owner) routineData.owner = currentUser?.email || "local_user";
         if (!isDelete && !routineData.assignedTo) routineData.assignedTo = "todos";
 
-        let newRoutines;
-        if (isDelete) {
-          newRoutines = routines.filter(r => r.id !== routineData.id);
-        } else {
-          const exists = routines.find(r => r.id === routineData.id);
-          if (exists) newRoutines = routines.map(r => r.id === routineData.id ? routineData : r);
-          else newRoutines = [...routines, routineData];
-        }
-        setRoutines(newRoutines);
+        // Usamos una función de callback para asegurarnos de no cruzar datos si se guardan varios a la vez
+        setRoutines(prevRoutines => {
+          let newRoutines;
+          if (isDelete) {
+            newRoutines = prevRoutines.filter(r => r.id !== routineData.id);
+          } else {
+            const exists = prevRoutines.find(r => r.id === routineData.id);
+            if (exists) newRoutines = prevRoutines.map(r => r.id === routineData.id ? routineData : r);
+            else newRoutines = [...prevRoutines, routineData];
+          }
+          
+          if (!isUsingCloud) {
+            window.localStorage.setItem('fuerzamexa_routines', JSON.stringify(newRoutines));
+          }
+          
+          return newRoutines;
+        });
 
+        // Guardado real en Supabase
         if (isUsingCloud && supabaseClient && currentUser) {
           if (isDelete) {
             await supabaseClient.from('routines').delete().eq('id', routineData.id);
@@ -1006,8 +1058,6 @@
               routine_data: routineData
             });
           }
-        } else {
-          window.localStorage.setItem('fuerzamexa_routines', JSON.stringify(newRoutines));
         }
       };
 
@@ -1018,7 +1068,7 @@
 
       const handleDeleteRoutine = (id, e) => {
         e.stopPropagation();
-        if(confirm("¿Seguro que deseas eliminar esta rutina?")) {
+        if(confirm("¿Seguro que deseas eliminar esta rutina de tu sistema?")) {
           saveRoutinesToDB({ id }, true);
         }
       };
@@ -1053,7 +1103,8 @@
         return <AuthScreen supabaseClient={supabaseClient} />;
       }
 
-      const isAdmin = session?.user?.email === ADMIN_EMAIL;
+      // Validamos ADMIN con minúsculas por seguridad
+      const isAdmin = session?.user?.email && ADMIN_EMAIL && session.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
       if (currentView === 'workout' && activeRoutine) {
         return <WorkoutPlayer routine={activeRoutine} onGoBack={() => setCurrentView('home')} />;
@@ -1092,7 +1143,6 @@
               
               {(!isUsingCloud || isAdmin) && (
                 <div className="flex gap-3 w-full md:w-auto">
-                  {/* Botón Nuevo: Gestión de Clientes */}
                   <button onClick={() => setCurrentView('clients')} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-4 rounded-2xl font-bold transition shadow-sm flex items-center gap-2 flex-1 md:flex-none justify-center">
                     <Icon name="users" size={20} /> Clientes
                   </button>
@@ -1149,7 +1199,7 @@
                       </span>
                       {isAdmin && (
                         <span className="text-xs font-normal text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-200" title={routine.assignedTo}>
-                          {routine.assignedTo === 'todos' ? 'Pública' : `Privada (${routine.assignedTo ? routine.assignedTo.split(',').length : 0})`}
+                          {routine.assignedTo === 'todos' ? 'Pública' : `Privada (${routine.assignedTo && routine.assignedTo !== 'todos' ? routine.assignedTo.split(',').length : 0})`}
                         </span>
                       )}
                     </div>
