@@ -531,6 +531,7 @@
         }
       };
 
+      // 🟢 SOLUCIÓN DEFINITIVA: LECTURA SÚPER INTELIGENTE DEL EXCEL
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -540,55 +541,99 @@
           try {
             const bstr = evt.target.result;
             const wb = window.XLSX.read(bstr, { type: 'binary' });
-            const wsname = wb.SheetNames[0];
-            const ws = wb.Sheets[wsname];
-            const data = window.XLSX.utils.sheet_to_json(ws);
-
-            const importedExercises = data.map((row, index) => {
-              const getValue = (keys) => {
-                for (let key of Object.keys(row)) {
-                  if (keys.some(k => key.toLowerCase().trim().includes(k))) {
-                    return row[key];
-                  }
-                }
-                return undefined;
-              };
-
-              const sets = Number(getValue(['series', 'set']) || 1);
-              let restsArr = [];
+            
+            let importedExercises = [];
+            
+            // 1. Recorrer TODAS las hojas del libro de Excel
+            wb.SheetNames.forEach(sheetName => {
+              const ws = wb.Sheets[sheetName];
+              // Usar 'header: 1' para obtener una matriz de datos reales (Array de Arrays)
+              // Esto evita que SheetJS confunda la primera fila con los títulos de las columnas.
+              const rawData = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
               
-              if (sets > 1) {
-                const restsRawStr = String(getValue(['descanso', 'rest']) || "60");
-                const restsRaw = restsRawStr.split(',').map(n => Number(n.trim()));
-                for(let i=0; i < sets - 1; i++) {
-                  restsArr.push(restsRaw[i] !== undefined && !isNaN(restsRaw[i]) ? restsRaw[i] : (restsRaw[0] || 60));
+              if (rawData.length < 2) return; // Si la hoja está vacía o solo tiene 1 fila, la saltamos
+              
+              let headerRowIdx = -1;
+              let colMap = {};
+              
+              // 2. Escanear las primeras 15 filas para descubrir automáticamente dónde están los encabezados
+              for (let i = 0; i < Math.min(rawData.length, 15); i++) {
+                const row = rawData[i] || [];
+                const rowStr = row.map(c => String(c || '').toLowerCase().trim());
+                
+                // Si la fila tiene algo que suene a "ejercicio" o "repeticiones", ESA es la fila de títulos
+                if (rowStr.some(c => c.includes('ejercicio') || c.includes('nombre') || c.includes('repeticion') || c.includes('reps'))) {
+                  headerRowIdx = i;
+                  
+                  // Mapeamos en qué posición está cada columna
+                  rowStr.forEach((colName, colIdx) => {
+                    if (colName.includes('bloque') || colName.includes('tipo') || colName.includes('semana') || colName.includes('día')) colMap.block = colIdx;
+                    if (colName.includes('ejercicio') || colName.includes('nombre') || colName.includes('movimiento')) colMap.name = colIdx;
+                    if (colName.includes('serie') || colName.includes('set')) colMap.sets = colIdx;
+                    if (colName.includes('repeticion') || colName.includes('reps')) colMap.reps = colIdx;
+                    if (colName.includes('descanso') || colName.includes('rest')) colMap.rest = colIdx;
+                    if (colName.includes('intensidad') || colName.includes('peso') || colName.includes('rpe')) colMap.intensity = colIdx;
+                    if (colName.includes('nota') || colName.includes('beneficio')) colMap.benefits = colIdx;
+                    if (colName.includes('video') || colName.includes('enlace') || colName.includes('link') || colName.includes('url')) colMap.video = colIdx;
+                  });
+                  break; // Ya encontramos el encabezado, no buscamos más
                 }
               }
-
-              return {
-                id: Date.now() + index,
-                block: getValue(['bloque', 'tipo']) || 'General',
-                name: getValue(['ejercicio', 'nombre', 'movimiento']) || 'Ejercicio sin nombre',
-                sets: sets,
-                reps: String(getValue(['repeticion', 'reps']) || '10'),
-                intensity: String(getValue(['intensidad', 'rpe', 'peso']) || 'Moderado'),
-                rests: restsArr,
-                benefits: String(getValue(['beneficio', 'nota']) || ''),
-                videoUrl: String(getValue(['video', 'enlace', 'url', 'link', 'imagen', 'foto']) || '')
-              };
+              
+              // Si nunca encontramos un encabezado con la palabra "ejercicio" en esta hoja, la saltamos
+              if (headerRowIdx === -1 || colMap.name === undefined) return; 
+              
+              // 3. Empezar a leer los ejercicios justo debajo de la fila de encabezados
+              for (let i = headerRowIdx + 1; i < rawData.length; i++) {
+                const row = rawData[i];
+                if (!row || row.length === 0) continue; // Saltar filas completamente vacías
+                
+                const rawName = row[colMap.name];
+                if (!rawName || String(rawName).trim() === '') continue; // Si no hay nombre de ejercicio, saltamos
+                
+                const sets = Number(row[colMap.sets]) || 1;
+                let restsArr = [];
+                
+                // Procesar los descansos si hay más de 1 serie
+                if (sets > 1) {
+                  const restsRawStr = String(colMap.rest !== undefined && row[colMap.rest] !== undefined ? row[colMap.rest] : "60");
+                  const restsRaw = restsRawStr.split(',').map(n => Number(n.trim()));
+                  for(let j = 0; j < sets - 1; j++) {
+                    restsArr.push(restsRaw[j] !== undefined && !isNaN(restsRaw[j]) ? restsRaw[j] : (restsRaw[0] || 60));
+                  }
+                }
+                
+                importedExercises.push({
+                  id: Date.now() + Math.random(), // Evita duplicados si se carga rapidísimo
+                  block: String(colMap.block !== undefined && row[colMap.block] !== undefined ? row[colMap.block] : 'General'),
+                  name: String(rawName),
+                  sets: sets,
+                  reps: String(colMap.reps !== undefined && row[colMap.reps] !== undefined ? row[colMap.reps] : '10'),
+                  intensity: String(colMap.intensity !== undefined && row[colMap.intensity] !== undefined ? row[colMap.intensity] : 'Moderado'),
+                  rests: restsArr,
+                  benefits: String(colMap.benefits !== undefined && row[colMap.benefits] !== undefined ? row[colMap.benefits] : ''),
+                  videoUrl: String(colMap.video !== undefined && row[colMap.video] !== undefined ? row[colMap.video] : '')
+                });
+              }
             });
 
+            if (importedExercises.length === 0) {
+              return alert("No logré encontrar ejercicios válidos en tu Excel. Asegúrate de que los títulos (Ejercicio, Series, Repeticiones...) estén correctos.");
+            }
+
+            // Agregamos todos los ejercicios rescatados de todas las hojas a la lista
             setExercises(prev => [...prev, ...importedExercises]);
             
+            // Si el nombre de la rutina está vacío, le ponemos el nombre del archivo de Excel
             const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
             setRoutineName(prev => prev ? prev : fileNameWithoutExt);
 
-            alert(`¡Éxito! Se importaron ${importedExercises.length} ejercicios.`);
+            alert(`¡Éxito total! Se importaron ${importedExercises.length} ejercicios de tu archivo.`);
           } catch (error) {
             console.error(error);
-            alert("Hubo un error al leer el archivo. Asegúrate de usar la plantilla correcta.");
+            alert("Hubo un error crítico al leer el archivo. Intenta guardarlo de nuevo como .xlsx");
           }
-          e.target.value = null; 
+          e.target.value = null; // Reiniciamos el input para poder subir el mismo archivo después si es necesario
         };
         reader.readAsBinaryString(file);
       };
@@ -753,7 +798,6 @@
                     <textarea rows="2" value={newEx.benefits} onChange={e => setNewEx({...newEx, benefits: e.target.value})} placeholder="¿Para qué sirve este ejercicio?" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                   </div>
                   <div>
-                    {/* 🟢 NUEVO: Etiqueta y placeholder actualizados para incluir imágenes */}
                     <label className="block text-xs font-bold text-slate-500 mb-1 mt-2">Enlace (Video o Imagen)</label>
                     <input type="url" value={newEx.videoUrl} onChange={e => setNewEx({...newEx, videoUrl: e.target.value})} placeholder="https://mi-archivo.mp4 o .jpg" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
