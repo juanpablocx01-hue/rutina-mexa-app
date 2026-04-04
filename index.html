@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FuerzaMexa App Pro</title>
+  <title>Gemelos ProFit Gym</title>
   
   <!-- 1. Cargar Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -50,7 +50,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
-    const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
+    const ADMIN_EMAIL = "jantonio.as@gmail.com";
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -96,7 +96,7 @@
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
           <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 w-full max-w-md">
             <div className="text-center mb-8">
-              <h1 className="text-4xl font-black text-blue-950 tracking-tight mb-2">FuerzaMexa <span className="text-blue-600">Pro</span></h1>
+              <h1 className="text-4xl font-black text-blue-950 tracking-tight mb-2">Gemelos <span className="text-blue-600">ProFit Gym</span></h1>
               <p className="text-slate-500">Inicia sesión para ver tu entrenamiento</p>
             </div>
 
@@ -1159,7 +1159,7 @@
 
       const loadLocalRoutines = () => {
         try {
-          const saved = window.localStorage.getItem('fuerzamexa_routines');
+          const saved = window.localStorage.getItem('gemelosprofit_routines');
           setRoutines(saved ? JSON.parse(saved) : []);
         } catch (e) {
           setRoutines([]);
@@ -1209,7 +1209,7 @@
           }
           
           if (!isUsingCloud) {
-            window.localStorage.setItem('fuerzamexa_routines', JSON.stringify(newRoutines));
+            window.localStorage.setItem('gemelosprofit_routines', JSON.stringify(newRoutines));
           }
           
           return newRoutines;
@@ -1264,7 +1264,7 @@
         }
       };
 
-      if (!authInitialized) return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-bold">Cargando FuerzaMexa...</div>;
+      if (!authInitialized) return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-bold">Cargando Gemelos ProFit Gym...</div>;
 
       if (isUsingCloud && !session) {
         return <AuthScreen supabaseClient={supabaseClient} />;
@@ -1289,7 +1289,7 @@
           <div className="max-w-5xl mx-auto">
             <header className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
               <div>
-                <h1 className="text-4xl md:text-5xl font-black text-blue-950 mb-2 tracking-tight">FuerzaMexa <span className="text-blue-600">Pro</span></h1>
+                <h1 className="text-4xl md:text-5xl font-black text-blue-950 mb-2 tracking-tight">Gemelos <span className="text-blue-600">ProFit Gym</span></h1>
                 <div className="flex flex-wrap items-center gap-3">
                   <p className="text-slate-500 font-medium text-lg">Tu centro de entrenamiento personal.</p>
                   {isUsingCloud && session ? (
