@@ -44,7 +44,7 @@
     // ==========================================
     // 1. Pega aquí tus credenciales de Supabase (Project Settings -> API)
     const SUPABASE_URL = "https://bbqgjvcevlnjdqrrthhh.supabase.co"; 
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0"; 
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
     const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
@@ -89,10 +89,9 @@
     };
 
     // ==========================================
-    // COMPONENTE: PANTALLA DE LOGIN / REGISTRO
+    // COMPONENTE: PANTALLA DE LOGIN (SIN REGISTRO)
     // ==========================================
     function AuthScreen({ supabaseClient }) {
-      const [isLogin, setIsLogin] = useState(true);
       const [email, setEmail] = useState('');
       const [password, setPassword] = useState('');
       const [loading, setLoading] = useState(false);
@@ -106,16 +105,11 @@
         setErrorMsg('');
 
         try {
-          if (isLogin) {
-            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) throw error;
-          } else {
-            const { error } = await supabaseClient.auth.signUp({ email, password });
-            if (error) throw error;
-            else alert("¡Registro exitoso! Ya puedes iniciar sesión.");
-          }
+          const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (error) throw error;
         } catch (error) {
-          setErrorMsg(error.message);
+          // Mensaje de error más amigable en español
+          setErrorMsg("Correo o contraseña incorrectos. Verifica tus datos.");
         } finally {
           setLoading(false);
         }
@@ -126,7 +120,7 @@
           <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 w-full max-w-md">
             <div className="text-center mb-8">
               <h1 className="text-4xl font-black text-blue-950 tracking-tight mb-2">FuerzaMexa <span className="text-blue-600">Pro</span></h1>
-              <p className="text-slate-500">{isLogin ? 'Inicia sesión en tu cuenta' : 'Crea una cuenta nueva'}</p>
+              <p className="text-slate-500">Inicia sesión para ver tu entrenamiento</p>
             </div>
 
             {errorMsg && (
@@ -146,16 +140,9 @@
               </div>
               
               <button type="submit" disabled={loading} className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-3.5 rounded-xl transition shadow-md disabled:opacity-70">
-                {loading ? 'Procesando...' : (isLogin ? 'Ingresar' : 'Registrarme')}
+                {loading ? 'Ingresando...' : 'Ingresar'}
               </button>
             </form>
-
-            <div className="mt-6 text-center text-sm text-slate-500">
-              {isLogin ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
-              <button type="button" onClick={() => { setIsLogin(!isLogin); setErrorMsg(''); }} className="text-blue-600 font-bold hover:underline">
-                {isLogin ? 'Regístrate aquí' : 'Inicia sesión'}
-              </button>
-            </div>
           </div>
         </div>
       );
@@ -599,10 +586,10 @@
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">
-                    <Icon name="users" size={16} className="text-blue-500" /> Asignar a (Correos)
+                    <Icon name="users" size={16} className="text-blue-500" /> ¿Quién puede ver esta rutina?
                   </label>
                   <input type="text" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} placeholder="todos, o ej: juan@mail.com, ana@mail.com" className="w-full text-base p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition" />
-                  <p className="text-xs text-slate-400 mt-2">Escribe "todos" para hacerla pública, o separa los correos por comas.</p>
+                  <p className="text-xs text-slate-400 mt-2">Escribe <strong>todos</strong> (pública) o los correos de tus clientes separados por comas.</p>
                 </div>
               </div>
             </div>
