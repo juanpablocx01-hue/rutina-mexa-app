@@ -50,7 +50,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
-    const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
+    const ADMIN_EMAIL = "jantonio.as@gmail.com";  
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -206,8 +206,11 @@
         } else if (isResting && timeLeft === 0) {
           speak("El tiempo de recuperación ha concluido. ¡A darle!");
           setIsResting(false);
-          if (currentSet < currentExercise.sets) setCurrentSet(prev => prev + 1);
-          else advanceExercise();
+          if (currentSet < currentExercise.sets) {
+            setCurrentSet(prev => prev + 1);
+          } else {
+            advanceExercise();
+          }
         }
         return () => clearTimeout(timerRef.current);
       }, [isResting, timeLeft]);
@@ -221,12 +224,16 @@
       const handleNext = () => {
         if (isResting) {
           setIsResting(false);
-          if (currentSet < currentExercise.sets) setCurrentSet(prev => prev + 1);
-          else advanceExercise();
+          if (currentSet < currentExercise.sets) {
+            setCurrentSet(prev => prev + 1);
+          } else {
+            advanceExercise();
+          }
           return;
         }
 
         if (currentSet < currentExercise.sets) {
+          // --- DESCANSO ENTRE SERIES ---
           let restTimeForThisSet = 0;
           if (currentExercise.rests && currentExercise.rests.length > 0) {
             restTimeForThisSet = currentExercise.rests[currentSet - 1] || 0;
@@ -242,7 +249,17 @@
             setCurrentSet(prev => prev + 1);
           }
         } else {
-          advanceExercise();
+          // --- DESCANSO AL FINALIZAR EL EJERCICIO (NUEVO) ---
+          let restAfter = currentExercise.restAfterExercise || 0;
+          
+          // Solo descansamos si no es el ÚLTIMO ejercicio de toda la rutina
+          if (restAfter > 0 && currentExerciseIndex < workoutPlan.length - 1) {
+            setIsResting(true);
+            setTimeLeft(restAfter);
+            speak(`Ejercicio completado. Descansa ${restAfter} segundos antes de pasar al siguiente ejercicio.`);
+          } else {
+            advanceExercise();
+          }
         }
       };
 
@@ -401,7 +418,15 @@
                     </div>
                     <h2 className="text-2xl text-slate-500 font-medium mb-2">Descanso Activo</h2>
                     <div className="text-7xl md:text-8xl font-black text-blue-950 tabular-nums tracking-tighter mb-6 drop-shadow-sm">{formatTime(timeLeft)}</div>
-                    <p className="text-lg text-slate-600 bg-slate-50 px-6 py-3 rounded-xl border border-slate-100 mb-6 font-medium">Prepárate para la serie <strong className="text-blue-900 text-xl">{currentSet + 1}</strong></p>
+                    
+                    {/* Texto inteligente dependiendo si es descanso entre series o final */}
+                    <p className="text-lg text-slate-600 bg-slate-50 px-6 py-3 rounded-xl border border-slate-100 mb-6 font-medium">
+                      {currentSet < currentExercise.sets 
+                        ? <span>Prepárate para la serie <strong className="text-blue-900 text-xl">{currentSet + 1}</strong></span>
+                        : <span>Prepárate para el <strong className="text-blue-900 text-xl">siguiente ejercicio</strong></span>
+                      }
+                    </p>
+                    
                     <button onClick={handleNext} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2">
                       <Icon name="skip-forward" size={20} /> Saltar
                     </button>
@@ -422,7 +447,6 @@
                       <div className="bg-blue-600/80 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10"><span className="text-white font-bold text-lg">Serie {currentSet} / {currentExercise.sets}</span></div>
                     </div>
                   )}
-                  {/* 🟢 REPRODUCTOR INTELIGENTE DE MEDIA (Soporta Video o Imagen) */}
                   {currentExercise.videoUrl ? (
                     currentExercise.videoUrl.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i) ? (
                       <img key={currentExercise.videoUrl} className="absolute top-0 left-0 w-full h-full object-contain" src={currentExercise.videoUrl} alt={currentExercise.name} />
@@ -472,7 +496,7 @@
       const [editingExerciseIndex, setEditingExerciseIndex] = useState(null);
       
       const defaultEx = {
-        block: "Fuerza", name: "", sets: 3, reps: "10", intensity: "Moderado", rests: [60, 60], benefits: "", videoUrl: ""
+        block: "Fuerza", name: "", sets: 3, reps: "10", intensity: "Moderado", rests: [60, 60], restAfterExercise: 90, benefits: "", videoUrl: ""
       };
       const [newEx, setNewEx] = useState(defaultEx);
 
@@ -531,7 +555,6 @@
         }
       };
 
-      // 🟢 SOLUCIÓN DEFINITIVA: LECTURA SÚPER INTELIGENTE DEL EXCEL
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -544,57 +567,49 @@
             
             let importedExercises = [];
             
-            // 1. Recorrer TODAS las hojas del libro de Excel
             wb.SheetNames.forEach(sheetName => {
               const ws = wb.Sheets[sheetName];
-              // Usar 'header: 1' para obtener una matriz de datos reales (Array de Arrays)
-              // Esto evita que SheetJS confunda la primera fila con los títulos de las columnas.
               const rawData = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
               
-              if (rawData.length < 2) return; // Si la hoja está vacía o solo tiene 1 fila, la saltamos
+              if (rawData.length < 2) return; 
               
               let headerRowIdx = -1;
               let colMap = {};
               
-              // 2. Escanear las primeras 15 filas para descubrir automáticamente dónde están los encabezados
               for (let i = 0; i < Math.min(rawData.length, 15); i++) {
                 const row = rawData[i] || [];
                 const rowStr = row.map(c => String(c || '').toLowerCase().trim());
                 
-                // Si la fila tiene algo que suene a "ejercicio" o "repeticiones", ESA es la fila de títulos
                 if (rowStr.some(c => c.includes('ejercicio') || c.includes('nombre') || c.includes('repeticion') || c.includes('reps'))) {
                   headerRowIdx = i;
                   
-                  // Mapeamos en qué posición está cada columna
                   rowStr.forEach((colName, colIdx) => {
                     if (colName.includes('bloque') || colName.includes('tipo') || colName.includes('semana') || colName.includes('día')) colMap.block = colIdx;
                     if (colName.includes('ejercicio') || colName.includes('nombre') || colName.includes('movimiento')) colMap.name = colIdx;
                     if (colName.includes('serie') || colName.includes('set')) colMap.sets = colIdx;
                     if (colName.includes('repeticion') || colName.includes('reps')) colMap.reps = colIdx;
-                    if (colName.includes('descanso') || colName.includes('rest')) colMap.rest = colIdx;
+                    if (colName.includes('descanso final') || colName.includes('descanso entre') || colName.includes('transición') || colName.includes('post')) colMap.restAfter = colIdx;
+                    else if (colName.includes('descanso') || colName.includes('rest')) colMap.rest = colIdx;
                     if (colName.includes('intensidad') || colName.includes('peso') || colName.includes('rpe')) colMap.intensity = colIdx;
                     if (colName.includes('nota') || colName.includes('beneficio')) colMap.benefits = colIdx;
-                    if (colName.includes('video') || colName.includes('enlace') || colName.includes('link') || colName.includes('url')) colMap.video = colIdx;
+                    if (colName.includes('video') || colName.includes('enlace') || colName.includes('link') || colName.includes('url') || colName.includes('imagen')) colMap.video = colIdx;
                   });
-                  break; // Ya encontramos el encabezado, no buscamos más
+                  break;
                 }
               }
               
-              // Si nunca encontramos un encabezado con la palabra "ejercicio" en esta hoja, la saltamos
               if (headerRowIdx === -1 || colMap.name === undefined) return; 
               
-              // 3. Empezar a leer los ejercicios justo debajo de la fila de encabezados
               for (let i = headerRowIdx + 1; i < rawData.length; i++) {
                 const row = rawData[i];
-                if (!row || row.length === 0) continue; // Saltar filas completamente vacías
+                if (!row || row.length === 0) continue; 
                 
                 const rawName = row[colMap.name];
-                if (!rawName || String(rawName).trim() === '') continue; // Si no hay nombre de ejercicio, saltamos
+                if (!rawName || String(rawName).trim() === '') continue; 
                 
                 const sets = Number(row[colMap.sets]) || 1;
                 let restsArr = [];
                 
-                // Procesar los descansos si hay más de 1 serie
                 if (sets > 1) {
                   const restsRawStr = String(colMap.rest !== undefined && row[colMap.rest] !== undefined ? row[colMap.rest] : "60");
                   const restsRaw = restsRawStr.split(',').map(n => Number(n.trim()));
@@ -604,13 +619,14 @@
                 }
                 
                 importedExercises.push({
-                  id: Date.now() + Math.random(), // Evita duplicados si se carga rapidísimo
+                  id: Date.now() + Math.random(), 
                   block: String(colMap.block !== undefined && row[colMap.block] !== undefined ? row[colMap.block] : 'General'),
                   name: String(rawName),
                   sets: sets,
                   reps: String(colMap.reps !== undefined && row[colMap.reps] !== undefined ? row[colMap.reps] : '10'),
                   intensity: String(colMap.intensity !== undefined && row[colMap.intensity] !== undefined ? row[colMap.intensity] : 'Moderado'),
                   rests: restsArr,
+                  restAfterExercise: Number(colMap.restAfter !== undefined && row[colMap.restAfter] !== undefined ? row[colMap.restAfter] : 0),
                   benefits: String(colMap.benefits !== undefined && row[colMap.benefits] !== undefined ? row[colMap.benefits] : ''),
                   videoUrl: String(colMap.video !== undefined && row[colMap.video] !== undefined ? row[colMap.video] : '')
                 });
@@ -621,10 +637,8 @@
               return alert("No logré encontrar ejercicios válidos en tu Excel. Asegúrate de que los títulos (Ejercicio, Series, Repeticiones...) estén correctos.");
             }
 
-            // Agregamos todos los ejercicios rescatados de todas las hojas a la lista
             setExercises(prev => [...prev, ...importedExercises]);
             
-            // Si el nombre de la rutina está vacío, le ponemos el nombre del archivo de Excel
             const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
             setRoutineName(prev => prev ? prev : fileNameWithoutExt);
 
@@ -633,7 +647,7 @@
             console.error(error);
             alert("Hubo un error crítico al leer el archivo. Intenta guardarlo de nuevo como .xlsx");
           }
-          e.target.value = null; // Reiniciamos el input para poder subir el mismo archivo después si es necesario
+          e.target.value = null; 
         };
         reader.readAsBinaryString(file);
       };
@@ -771,26 +785,41 @@
                     </div>
                   )}
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 mt-2">Intensidad / Esfuerzo Percibido</label>
-                    <input 
-                      list="intensity-options" 
-                      type="text" 
-                      value={newEx.intensity} 
-                      onChange={e => setNewEx({...newEx, intensity: e.target.value})} 
-                      placeholder="Selecciona o escribe una intensidad..." 
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    />
-                    <datalist id="intensity-options">
-                      <option value="Peso Corporal" />
-                      <option value="Ligero (RIR 4+ / RPE 5-6)" />
-                      <option value="Moderado (RIR 3 / RPE 7)" />
-                      <option value="Pesado (RIR 2 / RPE 8)" />
-                      <option value="Muy Pesado (RIR 1 / RPE 9)" />
-                      <option value="Al Fallo Máximo (RIR 0 / RPE 10)" />
-                      <option value="70% del 1RM" />
-                      <option value="80% del 1RM" />
-                    </datalist>
+                  {/* 🟢 SECCIÓN ACTUALIZADA DE INTENSIDAD Y DESCANSO FINAL */}
+                  <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Intensidad / RPE</label>
+                      <input 
+                        list="intensity-options" 
+                        type="text" 
+                        value={newEx.intensity} 
+                        onChange={e => setNewEx({...newEx, intensity: e.target.value})} 
+                        placeholder="Ej. Pesado..." 
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      />
+                      <datalist id="intensity-options">
+                        <option value="Peso Corporal" />
+                        <option value="Ligero (RIR 4+ / RPE 5-6)" />
+                        <option value="Moderado (RIR 3 / RPE 7)" />
+                        <option value="Pesado (RIR 2 / RPE 8)" />
+                        <option value="Muy Pesado (RIR 1 / RPE 9)" />
+                        <option value="Al Fallo Máximo (RIR 0 / RPE 10)" />
+                        <option value="70% del 1RM" />
+                        <option value="80% del 1RM" />
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1" title="Descanso después de terminar todas las series de este ejercicio.">
+                        Descanso final (segundos)
+                      </label>
+                      <input 
+                        type="number" 
+                        min="0" step="5" 
+                        value={newEx.restAfterExercise !== undefined ? newEx.restAfterExercise : 60} 
+                        onChange={e => setNewEx({...newEx, restAfterExercise: Number(e.target.value)})} 
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-900" 
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -839,7 +868,9 @@
                         <div className="flex-1 overflow-hidden">
                           <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">{ex.block}</p>
                           <h4 className="font-bold text-slate-800 truncate">{ex.name}</h4>
-                          <p className="text-sm text-slate-500">{ex.sets} series x {ex.reps} • {ex.rests && ex.rests.length > 0 ? ex.rests.join('s / ')+'s' : '0s'}</p>
+                          <p className="text-sm text-slate-500">
+                            {ex.sets} series x {ex.reps} • Descansos: {ex.rests && ex.rests.length > 0 ? ex.rests.join('s / ')+'s' : '0s'} • Transición: {ex.restAfterExercise || 0}s
+                          </p>
                         </div>
                         <div className="flex flex-col gap-1">
                           <button onClick={() => handleEditExercise(index)} className="text-slate-300 hover:text-blue-500 transition p-1" title="Editar">
