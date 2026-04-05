@@ -145,18 +145,43 @@
       const [musicUrl, setMusicUrl] = useState(null);
       const [musicName, setMusicName] = useState("");
       const [isTheaterMode, setIsTheaterMode] = useState(false);
-      
-      // NUEVO ESTADO: Menú lateral en móviles
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
       const timerRef = useRef(null);
       const recognitionRef = useRef(null);
       const handleNextRef = useRef(null);
       const voiceEnabledRef = useRef(voiceEnabled);
+      const finishRestAndAdvanceRef = useRef(null);
 
       const currentExercise = workoutPlan[currentExerciseIndex];
 
-      // Mantener referencias actualizadas para que los eventos de voz accedan al estado más reciente
+      // --- MOTOR DE AVANCE (Soporte Biseries/Circuitos) ---
+      useEffect(() => {
+        finishRestAndAdvanceRef.current = () => {
+          setIsResting(false);
+          
+          if (currentSet < currentExercise.sets) {
+             // Es un avance entre series. Hay que revisar si estamos en un circuito/biserie
+             // para regresar al primer ejercicio del circuito.
+             let firstIdx = currentExerciseIndex;
+             while(firstIdx > 0 && workoutPlan[firstIdx - 1].isBiserie) {
+                firstIdx--;
+             }
+             setCurrentExerciseIndex(firstIdx);
+             setCurrentSet(prev => prev + 1);
+          } else {
+             // El ejercicio (o bloque del circuito) terminó. Avanzamos al siguiente bloque.
+             if (currentExerciseIndex < workoutPlan.length - 1) {
+               setCurrentExerciseIndex(prev => prev + 1);
+               setCurrentSet(1);
+             } else {
+               setIsFinished(true);
+               speak("¡Rutina completada! Excelente trabajo.");
+             }
+          }
+        };
+      });
+
       useEffect(() => {
         handleNextRef.current = handleNext;
         voiceEnabledRef.current = voiceEnabled;
@@ -164,7 +189,7 @@
 
       useEffect(() => { setIsTheaterMode(false); }, [currentExerciseIndex]);
 
-      // --- INICIALIZACIÓN DE CONTROL DE VOZ (UNA SOLA VEZ) ---
+      // --- INICIALIZACIÓN DE CONTROL DE VOZ ---
       useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) return;
@@ -200,11 +225,12 @@
         };
       }, []);
 
-      // --- MANEJO DEL BOTÓN DE VOZ (Llamada directa instantánea para móviles) ---
+      const [alertMsg, setAlertMsg] = useState("");
+
       const handleVoiceToggle = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-          alert("⚠️ Tu navegador no soporta el Control por Voz.\n\nTe recomendamos usar Google Chrome en Android o Safari en iPhone.");
+          setAlertMsg("Tu navegador no soporta el Control por Voz. Te recomendamos usar Google Chrome en Android o Safari en iPhone.");
           return;
         }
         
@@ -212,7 +238,7 @@
           setVoiceEnabled(true);
           voiceEnabledRef.current = true;
           try {
-            recognitionRef.current.start(); // Clave para móviles: iniciar directamente en el clic
+            recognitionRef.current.start(); 
           } catch (e) {}
         } else {
           setVoiceEnabled(false);
@@ -237,6 +263,7 @@
         }
       }, [currentExerciseIndex, isResting, isFinished, speak]);
 
+      // --- RELOJ Y TEMPORIZADOR ---
       useEffect(() => {
         if (isResting && timeLeft > 0) {
           timerRef.current = setTimeout(() => {
@@ -245,15 +272,10 @@
           }, 1000);
         } else if (isResting && timeLeft === 0) {
           speak("El tiempo de recuperación ha concluido. ¡A darle!");
-          setIsResting(false);
-          if (currentSet < currentExercise.sets) {
-            setCurrentSet(prev => prev + 1);
-          } else {
-            advanceExercise();
-          }
+          if (finishRestAndAdvanceRef.current) finishRestAndAdvanceRef.current();
         }
         return () => clearTimeout(timerRef.current);
-      }, [isResting, timeLeft]);
+      }, [isResting, timeLeft, speak]);
 
       useEffect(() => {
         let globalTimer;
@@ -261,13 +283,19 @@
         return () => clearInterval(globalTimer);
       }, [isFinished]);
 
+      // --- MOTOR AL DAR CLIC A "SIGUIENTE" ---
       const handleNext = () => {
         if (isResting) {
-          setIsResting(false);
-          if (currentSet < currentExercise.sets) {
-            setCurrentSet(prev => prev + 1);
+          if (finishRestAndAdvanceRef.current) finishRestAndAdvanceRef.current();
+          return;
+        }
+
+        // Si es parte de una Biserie (Salto instantáneo al siguiente ejercicio)
+        if (currentExercise.isBiserie) {
+          if (currentExerciseIndex < workoutPlan.length - 1) {
+            setCurrentExerciseIndex(prev => prev + 1);
           } else {
-            advanceExercise();
+             if (finishRestAndAdvanceRef.current) finishRestAndAdvanceRef.current();
           }
           return;
         }
@@ -285,28 +313,17 @@
             setTimeLeft(restTimeForThisSet);
             speak(`Serie completada. Tienes ${restTimeForThisSet} segundos de recuperación.`);
           } else {
-            setCurrentSet(prev => prev + 1);
+            if (finishRestAndAdvanceRef.current) finishRestAndAdvanceRef.current();
           }
         } else {
           let restAfter = currentExercise.restAfterExercise || 0;
-          
           if (restAfter > 0 && currentExerciseIndex < workoutPlan.length - 1) {
             setIsResting(true);
             setTimeLeft(restAfter);
-            speak(`Ejercicio completado. Descansa ${restAfter} segundos antes de pasar al siguiente ejercicio.`);
+            speak(`Ejercicio completado. Descansa ${restAfter} segundos antes de pasar al siguiente bloque.`);
           } else {
-            advanceExercise();
+            if (finishRestAndAdvanceRef.current) finishRestAndAdvanceRef.current();
           }
-        }
-      };
-
-      const advanceExercise = () => {
-        if (currentExerciseIndex < workoutPlan.length - 1) {
-          setCurrentExerciseIndex(prev => prev + 1);
-          setCurrentSet(1);
-        } else {
-          setIsFinished(true);
-          speak("¡Rutina completada! Excelente trabajo.");
         }
       };
 
@@ -314,7 +331,7 @@
         setCurrentExerciseIndex(index);
         setCurrentSet(1);
         setIsResting(false);
-        setIsSidebarOpen(false); // Cierra el menú en móvil al seleccionar
+        setIsSidebarOpen(false);
       };
 
       const formatTime = (seconds) => {
@@ -364,6 +381,18 @@
       return (
         <div className="h-[100dvh] w-full bg-slate-50 text-slate-800 font-sans flex overflow-hidden relative">
           
+          {alertMsg && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+               <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
+                 <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                   <Icon name="info" size={32} />
+                 </div>
+                 <p className="mb-6 font-bold text-slate-700 text-lg">{alertMsg}</p>
+                 <button onClick={() => setAlertMsg("")} className="w-full bg-blue-900 hover:bg-blue-800 text-white py-3 rounded-xl font-bold transition">Entendido</button>
+               </div>
+            </div>
+          )}
+
           {/* OVERLAY FONDO OSCURO PARA MÓVIL (CUANDO MENÚ ESTÁ ABIERTO) */}
           {isSidebarOpen && (
             <div 
@@ -414,7 +443,10 @@
                         {isPast ? <Icon name="check-circle" size={16} /> : index + 1}
                       </div>
                       <div className="flex-1 overflow-hidden">
-                        <h4 className={`truncate font-medium text-sm md:text-base ${isActive ? 'text-white' : isPast ? 'text-slate-500 line-through decoration-slate-300' : 'text-slate-700'}`}>{ex.name}</h4>
+                        <h4 className={`truncate font-medium text-sm md:text-base ${isActive ? 'text-white' : isPast ? 'text-slate-500 line-through decoration-slate-300' : 'text-slate-700'} flex items-center gap-2`}>
+                          {ex.name}
+                          {ex.isBiserie && <Icon name="link" size={14} className={isActive ? 'text-blue-300' : 'text-indigo-400'} />}
+                        </h4>
                         <p className={`text-xs ${isActive ? 'text-blue-200' : 'text-slate-500'}`}>{ex.sets}x{ex.reps}</p>
                       </div>
                     </button>
@@ -452,8 +484,9 @@
                 <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 hover:bg-slate-200 rounded-xl bg-white shadow-sm border border-slate-200">
                   <Icon name="menu" size={20} />
                 </button>
-                <span className="px-3 py-1 bg-blue-50 text-blue-900 rounded-full text-xs md:text-sm font-bold tracking-wide uppercase border border-blue-100 truncate max-w-[120px] sm:max-w-none">
+                <span className="px-3 py-1 bg-blue-50 text-blue-900 rounded-full text-xs md:text-sm font-bold tracking-wide uppercase border border-blue-100 truncate max-w-[120px] sm:max-w-none flex items-center gap-1">
                   {currentExercise.block}
+                  {currentExercise.isBiserie && <Icon name="link" size={14} className="text-blue-500 ml-1" />}
                 </span>
                 <span className="text-slate-500 font-medium text-xs md:text-sm hidden sm:block truncate">
                   Ej {currentExerciseIndex + 1}/{workoutPlan.length}
@@ -492,7 +525,7 @@
                     <p className="text-base md:text-lg text-slate-600 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100 mb-6 font-medium">
                       {currentSet < currentExercise.sets 
                         ? <span>Prepárate para la serie <strong className="text-blue-900 text-xl">{currentSet + 1}</strong></span>
-                        : <span>Prepárate para el <strong className="text-blue-900 text-xl">siguiente ejercicio</strong></span>
+                        : <span>Prepárate para el <strong className="text-blue-900 text-xl">siguiente bloque</strong></span>
                       }
                     </p>
                     
@@ -507,7 +540,7 @@
                 <h1 className={`font-extrabold text-blue-950 mb-4 md:mb-6 leading-tight ${isTheaterMode ? 'hidden' : 'text-2xl md:text-4xl lg:text-5xl'}`}>{currentExercise.name}</h1>
                 
                 <div className={`w-full bg-slate-950 overflow-hidden relative border border-slate-200 transition-all duration-500 ${isTheaterMode ? 'flex-1 rounded-2xl mb-4 border-slate-800' : 'aspect-video rounded-2xl md:rounded-3xl shadow-xl mb-6 md:mb-8'}`}>
-                  <button onClick={() => setIsTheaterMode(!isTheaterMode)} className="absolute top-2 right-2 md:top-4 md:right-4 z-20 p-2 md:p-2.5 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-lg md:rounded-xl backdrop-blur-md transition-all shadow-lg border border-white/10" title={isTheaterMode ? "Reducir video" : "Ampliar video"}>
+                  <button onClick={() => setIsTheaterMode(!isTheaterMode)} className="absolute top-2 right-2 md:top-4 md:right-4 z-20 p-2 md:p-2.5 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-xl backdrop-blur-md transition-all shadow-lg border border-white/10" title={isTheaterMode ? "Reducir video" : "Ampliar video"}>
                     <Icon name={isTheaterMode ? "minimize" : "maximize"} size={20} />
                   </button>
                   {isTheaterMode && (
@@ -531,9 +564,9 @@
                 </div>
 
                 <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 ${isTheaterMode ? 'hidden' : ''}`}>
-                  <div className="bg-white border border-slate-200 p-4 md:p-5 rounded-2xl shadow-sm"><span className="text-slate-500 text-xs md:text-sm mb-1 md:mb-2 flex items-center gap-2 font-medium"><Icon name="activity" size={16} className="text-blue-900 hidden sm:block"/> Series</span><span className="text-2xl md:text-3xl font-black text-blue-950">{currentSet} <span className="text-sm md:text-lg font-medium text-slate-400">/ {currentExercise.sets}</span></span></div>
-                  <div className="bg-white border border-slate-200 p-4 md:p-5 rounded-2xl shadow-sm"><span className="text-slate-500 text-xs md:text-sm mb-1 md:mb-2 flex items-center gap-2 font-medium"><Icon name="dumbbell" size={16} className="text-blue-900 hidden sm:block"/> Reps</span><span className="text-2xl md:text-3xl font-black text-blue-950">{currentExercise.reps}</span></div>
-                  <div className="bg-white border border-slate-200 p-4 md:p-5 rounded-2xl shadow-sm col-span-2"><span className="text-slate-500 text-xs md:text-sm mb-1 md:mb-2 flex items-center gap-2 font-medium"><Icon name="flame" size={16} className="text-blue-900 hidden sm:block"/> Intensidad</span><span className="text-xl md:text-2xl font-bold text-slate-700 truncate block w-full">{currentExercise.intensity}</span></div>
+                  <div className="bg-white border border-slate-200 p-4 md:p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow"><span className="text-slate-500 text-xs md:text-sm mb-1 md:mb-2 flex items-center gap-2 font-medium"><Icon name="activity" size={16} className="text-blue-900 hidden sm:block"/> Series</span><span className="text-2xl md:text-3xl font-black text-blue-950">{currentSet} <span className="text-sm md:text-lg font-medium text-slate-400">/ {currentExercise.sets}</span></span></div>
+                  <div className="bg-white border border-slate-200 p-4 md:p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow"><span className="text-slate-500 text-xs md:text-sm mb-1 md:mb-2 flex items-center gap-2 font-medium"><Icon name="dumbbell" size={16} className="text-blue-900 hidden sm:block"/> Reps</span><span className="text-2xl md:text-3xl font-black text-blue-950">{currentExercise.reps}</span></div>
+                  <div className="bg-white border border-slate-200 p-4 md:p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow col-span-2"><span className="text-slate-500 text-xs md:text-sm mb-1 md:mb-2 flex items-center gap-2 font-medium"><Icon name="flame" size={16} className="text-blue-900 hidden sm:block"/> Intensidad</span><span className="text-xl md:text-2xl font-bold text-slate-700 truncate block w-full">{currentExercise.intensity}</span></div>
                 </div>
 
                 <div className={`bg-white border border-slate-200 p-4 md:p-6 rounded-2xl flex gap-3 md:gap-4 items-start shadow-sm mb-4 ${isTheaterMode ? 'hidden' : ''}`}>
@@ -545,7 +578,8 @@
 
             <div className={`mt-auto sticky bottom-0 bg-gradient-to-t ${isTheaterMode ? 'from-slate-950 via-slate-950' : 'from-slate-50 via-slate-50'} to-transparent pb-4 pt-6 z-20 ${isResting ? 'opacity-0 pointer-events-none' : 'transition-colors duration-500'}`}>
               <button onClick={handleNext} className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold text-lg md:text-xl py-4 md:py-5 rounded-2xl shadow-[0_8px_30px_rgb(30,58,138,0.3)] transition-all active:scale-[0.98] flex items-center justify-center gap-3">
-                <Icon name="check-circle" size={24} /> {currentSet === currentExercise.sets ? "Completar Ejercicio" : "Serie Terminada"}
+                {currentExercise.isBiserie ? <Icon name="link" size={24} /> : <Icon name="check-circle" size={24} />}
+                {currentExercise.isBiserie ? "Siguiente Ejercicio (Sin Descanso)" : currentSet === currentExercise.sets ? "Completar Ejercicio" : "Serie Terminada"}
               </button>
             </div>
           </main>
@@ -558,14 +592,13 @@
     // ==========================================
     function RoutineCreator({ initialRoutine, onSave, onCancel }) {
       const [routineName, setRoutineName] = useState(initialRoutine ? initialRoutine.name : "");
-      
       const [isPublic, setIsPublic] = useState(initialRoutine?.assignedTo === "todos" || !initialRoutine);
-      
       const [exercises, setExercises] = useState(initialRoutine ? initialRoutine.exercises : []);
       const [editingExerciseIndex, setEditingExerciseIndex] = useState(null);
+      const [alertMsg, setAlertMsg] = useState("");
       
       const defaultEx = {
-        block: "Fuerza", name: "", sets: 3, reps: "10", intensity: "Moderado", rests: [60, 60], restAfterExercise: 90, benefits: "", videoUrl: ""
+        block: "Fuerza", name: "", sets: 3, reps: "10", intensity: "Moderado", rests: [60, 60], restAfterExercise: 90, benefits: "", videoUrl: "", isBiserie: false
       };
       const [newEx, setNewEx] = useState(defaultEx);
 
@@ -574,7 +607,6 @@
       const handleSetsChange = (val) => {
         const newSets = Number(val);
         let newRests = [...newEx.rests];
-        
         if (newSets > 1) {
           const lastRest = newRests.length > 0 ? newRests[newRests.length - 1] : 60;
           while (newRests.length < newSets - 1) { newRests.push(lastRest); }
@@ -593,7 +625,7 @@
 
       const handleAddExercise = () => {
         if (!newEx.name) {
-          alert("Debes ponerle nombre al ejercicio.");
+          setAlertMsg("Debes ponerle nombre al ejercicio.");
           return;
         }
 
@@ -667,6 +699,7 @@
                     if (colMap.intensity === undefined && /intensidad|peso|rpe/i.test(colName)) colMap.intensity = colIdx;
                     if (colMap.benefits === undefined && /nota|beneficio|detalle/i.test(colName)) colMap.benefits = colIdx;
                     if (colMap.video === undefined && /video|enlace|link|url|imagen|foto/i.test(colName)) colMap.video = colIdx;
+                    if (colMap.isBiserie === undefined && /biserie|circuito|combinar|unir/i.test(colName)) colMap.isBiserie = colIdx;
                   });
                   break;
                 }
@@ -686,7 +719,6 @@
                 
                 if (sets > 1) {
                   let rawVal = colMap.rest !== undefined && row[colMap.rest] !== undefined ? row[colMap.rest] : "60";
-                  
                   if (typeof rawVal === 'number' && !Number.isInteger(rawVal)) {
                       let parts = String(rawVal).split('.');
                       let decPart = parts[1];
@@ -700,15 +732,16 @@
                   
                   for(let j = 0; j < sets - 1; j++) {
                     let val = restsRaw[j];
-                    if (val === undefined) {
-                      val = restsRaw[restsRaw.length - 1] || 60;
-                    }
+                    if (val === undefined) val = restsRaw[restsRaw.length - 1] || 60;
                     restsArr.push(val);
                   }
                 }
                 
                 let restAfterStr = String(colMap.restAfter !== undefined && row[colMap.restAfter] !== undefined ? row[colMap.restAfter] : "0");
                 let parsedRestAfter = Number(restAfterStr.match(/\d+/)?.[0] || 0);
+
+                const rawBiserie = String(colMap.isBiserie !== undefined && row[colMap.isBiserie] !== undefined ? row[colMap.isBiserie] : "").toLowerCase().trim();
+                const isBiserie = /si|yes|true|x|1|biserie/i.test(rawBiserie);
 
                 importedExercises.push({
                   id: Date.now() + Math.random(), 
@@ -720,24 +753,23 @@
                   rests: restsArr,
                   restAfterExercise: parsedRestAfter,
                   benefits: String(colMap.benefits !== undefined && row[colMap.benefits] !== undefined ? row[colMap.benefits] : ''),
-                  videoUrl: String(colMap.video !== undefined && row[colMap.video] !== undefined ? row[colMap.video] : '')
+                  videoUrl: String(colMap.video !== undefined && row[colMap.video] !== undefined ? row[colMap.video] : ''),
+                  isBiserie: isBiserie
                 });
               }
             });
 
             if (importedExercises.length === 0) {
-              return alert("No logré encontrar ejercicios válidos en tu Excel. Asegúrate de que los títulos (Ejercicio, Series, Repeticiones...) estén correctos.");
+              return setAlertMsg("No logré encontrar ejercicios válidos en tu Excel. Asegúrate de que los títulos (Ejercicio, Series, Repeticiones...) estén correctos.");
             }
 
             setExercises(prev => [...prev, ...importedExercises]);
-            
             const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
             setRoutineName(prev => prev ? prev : fileNameWithoutExt);
-
-            alert(`¡Éxito total! Se importaron ${importedExercises.length} ejercicios de tu archivo.`);
+            setAlertMsg(`¡Éxito total! Se importaron ${importedExercises.length} ejercicios de tu archivo.`);
           } catch (error) {
             console.error(error);
-            alert("Hubo un error crítico al leer el archivo. Intenta guardarlo de nuevo como .xlsx");
+            setAlertMsg("Hubo un error crítico al leer el archivo. Intenta guardarlo de nuevo como .xlsx");
           }
           e.target.value = null; 
         };
@@ -745,8 +777,8 @@
       };
 
       const handleSaveRoutine = () => {
-        if (!routineName) return alert("Por favor, ponle nombre a la rutina.");
-        if (exercises.length === 0) return alert("Agrega al menos un ejercicio.");
+        if (!routineName) return setAlertMsg("Por favor, ponle nombre a la rutina.");
+        if (exercises.length === 0) return setAlertMsg("Agrega al menos un ejercicio.");
         
         let finalAssignedTo = "todos";
         if (!isPublic) {
@@ -766,9 +798,22 @@
       };
 
       return (
-        <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-10 font-sans">
+        <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-10 font-sans relative">
+          
+          {/* Modal de Alertas del Creador */}
+          {alertMsg && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+               <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
+                 <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                   <Icon name="info" size={32} />
+                 </div>
+                 <p className="mb-6 font-bold text-slate-700 text-lg">{alertMsg}</p>
+                 <button onClick={() => setAlertMsg("")} className="w-full bg-blue-900 hover:bg-blue-800 text-white py-3 rounded-xl font-bold transition">Entendido</button>
+               </div>
+            </div>
+          )}
+
           <div className="max-w-4xl mx-auto">
-            
             <div className="flex justify-between items-center mb-8">
               <div className="flex items-center gap-4">
                 <button onClick={onCancel} className="p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-100 transition"><Icon name="arrow-left" size={24} /></button>
@@ -913,6 +958,20 @@
                     </div>
                   </div>
 
+                  {/* BOTON BISERIE */}
+                  <div 
+                    className="mt-2 p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center gap-3 cursor-pointer" 
+                    onClick={() => setNewEx({...newEx, isBiserie: !newEx.isBiserie})}
+                  >
+                    <div className={`w-5 h-5 rounded flex items-center justify-center border ${newEx.isBiserie ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
+                      {newEx.isBiserie && <Icon name="check" size={14} className="text-white" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-indigo-900">Combinar en Biserie/Circuito</p>
+                      <p className="text-xs text-indigo-700">Se realizará seguido del próximo ejercicio sin descanso.</p>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1 mt-2">Beneficios / Notas</label>
                     <textarea rows="2" value={newEx.benefits} onChange={e => setNewEx({...newEx, benefits: e.target.value})} placeholder="¿Para qué sirve este ejercicio?" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
@@ -957,7 +1016,10 @@
                           {index + 1}
                         </div>
                         <div className="flex-1 overflow-hidden">
-                          <p className="text-xs text-blue-600 font-bold uppercase tracking-wider">{ex.block}</p>
+                          <p className="text-xs text-blue-600 font-bold uppercase tracking-wider flex items-center gap-2">
+                            {ex.block}
+                            {ex.isBiserie && <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-md text-[10px] flex items-center gap-1"><Icon name="link" size={10} /> BISERIE</span>}
+                          </p>
                           <h4 className="font-bold text-slate-800 truncate">{ex.name}</h4>
                           <p className="text-sm text-slate-500">
                             {ex.sets} series x {ex.reps} • Descansos: {ex.rests && ex.rests.length > 0 ? ex.rests.join('s / ')+'s' : '0s'} • Transición: {ex.restAfterExercise || 0}s
@@ -988,6 +1050,8 @@
     function ClientManager({ routines, saveRoutinesToDB, onGoBack }) {
       const [searchEmail, setSearchEmail] = useState('');
       const [selectedClient, setSelectedClient] = useState(null);
+      const [alertMsg, setAlertMsg] = useState("");
+      const [confirmDialog, setConfirmDialog] = useState(null);
 
       useEffect(() => { lucide.createIcons(); });
 
@@ -1015,7 +1079,7 @@
           setSelectedClient(searchEmail.toLowerCase());
           setSearchEmail('');
         } else {
-          alert('Por favor, ingresa un correo válido con @.');
+          setAlertMsg('Por favor, ingresa un correo válido con @.');
         }
       };
 
@@ -1035,29 +1099,61 @@
       };
 
       const handleRemoveClientCompletely = async (emailToRemove) => {
-        if (confirm(`¿Estás seguro de revocar TODOS los accesos a ${emailToRemove}? Ya no podrá ver ninguna rutina privada.`)) {
-          
-          const routinesToUpdate = routines.filter(r => {
-            if (!r.assignedTo || r.assignedTo === "todos" || r.assignedTo === "nadie") return false;
-            const emails = r.assignedTo.split(',').map(e => e.trim().toLowerCase());
-            return emails.includes(emailToRemove);
-          });
+        setConfirmDialog({
+          message: `¿Estás seguro de revocar TODOS los accesos a ${emailToRemove}? Ya no podrá ver ninguna rutina privada.`,
+          action: async () => {
+            const routinesToUpdate = routines.filter(r => {
+              if (!r.assignedTo || r.assignedTo === "todos" || r.assignedTo === "nadie") return false;
+              const emails = r.assignedTo.split(',').map(e => e.trim().toLowerCase());
+              return emails.includes(emailToRemove);
+            });
 
-          for (const routine of routinesToUpdate) {
-            let emails = routine.assignedTo.split(',').map(e => e.trim().toLowerCase());
-            emails = emails.filter(e => e !== emailToRemove);
-            const newAssignedTo = emails.length > 0 ? emails.join(', ') : "nadie";
-            await saveRoutinesToDB({ ...routine, assignedTo: newAssignedTo }, false);
-          }
+            for (const routine of routinesToUpdate) {
+              let emails = routine.assignedTo.split(',').map(e => e.trim().toLowerCase());
+              emails = emails.filter(e => e !== emailToRemove);
+              const newAssignedTo = emails.length > 0 ? emails.join(', ') : "nadie";
+              await saveRoutinesToDB({ ...routine, assignedTo: newAssignedTo }, false);
+            }
 
-          if (selectedClient === emailToRemove) {
-            setSelectedClient(null);
+            if (selectedClient === emailToRemove) {
+              setSelectedClient(null);
+            }
           }
-        }
+        });
       };
 
       return (
-        <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-10 font-sans">
+        <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-10 font-sans relative">
+          
+          {/* Modal de Alertas */}
+          {alertMsg && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+               <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
+                 <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                   <Icon name="info" size={32} />
+                 </div>
+                 <p className="mb-6 font-bold text-slate-700 text-lg">{alertMsg}</p>
+                 <button onClick={() => setAlertMsg("")} className="w-full bg-blue-900 hover:bg-blue-800 text-white py-3 rounded-xl font-bold transition">Entendido</button>
+               </div>
+            </div>
+          )}
+
+          {/* Modal de Confirmación */}
+          {confirmDialog && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+               <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
+                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                   <Icon name="alert-triangle" size={32} />
+                 </div>
+                 <p className="mb-6 font-bold text-slate-700 text-lg">{confirmDialog.message}</p>
+                 <div className="flex gap-3">
+                   <button onClick={() => setConfirmDialog(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold transition">Cancelar</button>
+                   <button onClick={() => { confirmDialog.action(); setConfirmDialog(null); }} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold transition">Confirmar</button>
+                 </div>
+               </div>
+            </div>
+          )}
+
           <div className="max-w-6xl mx-auto flex flex-col h-full">
             
             <div className="flex items-center gap-4 mb-8">
@@ -1199,6 +1295,8 @@
 
       const [session, setSession] = useState(null);
       const [authInitialized, setAuthInitialized] = useState(false);
+      
+      const [confirmDialog, setConfirmDialog] = useState(null);
 
       useEffect(() => { lucide.createIcons(); });
 
@@ -1305,9 +1403,10 @@
 
       const handleDeleteRoutine = (id, e) => {
         e.stopPropagation();
-        if(confirm("¿Seguro que deseas eliminar esta rutina de tu sistema?")) {
-          saveRoutinesToDB({ id }, true);
-        }
+        setConfirmDialog({
+          message: "¿Seguro que deseas eliminar esta rutina de tu sistema?",
+          action: () => saveRoutinesToDB({ id }, true)
+        });
       };
 
       const handleEditRoutine = (routine, e) => {
@@ -1355,7 +1454,24 @@
       }
 
       return (
-        <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-12 font-sans">
+        <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-12 font-sans relative">
+          
+          {/* Modal de Confirmación Principal */}
+          {confirmDialog && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+               <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
+                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                   <Icon name="alert-triangle" size={32} />
+                 </div>
+                 <p className="mb-6 font-bold text-slate-700 text-lg">{confirmDialog.message}</p>
+                 <div className="flex gap-3">
+                   <button onClick={() => setConfirmDialog(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold transition">Cancelar</button>
+                   <button onClick={() => { confirmDialog.action(); setConfirmDialog(null); }} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold transition">Eliminar</button>
+                 </div>
+               </div>
+            </div>
+          )}
+
           <div className="max-w-5xl mx-auto">
             <header className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
               <div>
