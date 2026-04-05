@@ -131,7 +131,7 @@
     // ==========================================
     // COMPONENTE: REPRODUCTOR DE RUTINA
     // ==========================================
-    function WorkoutPlayer({ routine, onGoBack }) {
+    function WorkoutPlayer({ routine, onGoBack, progressHistory = {}, onSaveProgress }) {
       const workoutPlan = routine.exercises;
       const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
       const [currentSet, setCurrentSet] = useState(1);
@@ -147,6 +147,9 @@
       const [isTheaterMode, setIsTheaterMode] = useState(false);
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+      // NUEVO: Estado para el input de peso
+      const [currentWeight, setCurrentWeight] = useState("");
+
       const timerRef = useRef(null);
       const recognitionRef = useRef(null);
       const handleNextRef = useRef(null);
@@ -154,6 +157,14 @@
       const finishRestAndAdvanceRef = useRef(null);
 
       const currentExercise = workoutPlan[currentExerciseIndex];
+
+      // Sincronizar el peso del input con el historial al cambiar de ejercicio
+      useEffect(() => {
+        if (currentExercise) {
+          const prevRecord = progressHistory[currentExercise.name.toLowerCase().trim()] || "";
+          setCurrentWeight(prevRecord);
+        }
+      }, [currentExerciseIndex]); // Se ejecuta solo cuando cambias de ejercicio
 
       // --- MOTOR DE AVANCE (Soporte Biseries/Circuitos) ---
       useEffect(() => {
@@ -282,6 +293,11 @@
 
       // --- MOTOR AL DAR CLIC A "SIGUIENTE" ---
       const handleNext = () => {
+        // Guardamos el peso al avanzar de serie/ejercicio
+        if (currentWeight.trim() !== "") {
+          onSaveProgress(currentExercise.name, currentWeight);
+        }
+
         if (isResting) {
           if (finishRestAndAdvanceRef.current) finishRestAndAdvanceRef.current();
           return;
@@ -320,16 +336,6 @@
           } else {
             if (finishRestAndAdvanceRef.current) finishRestAndAdvanceRef.current();
           }
-        }
-      };
-
-      const advanceExercise = () => {
-        if (currentExerciseIndex < workoutPlan.length - 1) {
-          setCurrentExerciseIndex(prev => prev + 1);
-          setCurrentSet(1);
-        } else {
-          setIsFinished(true);
-          speak("¡Rutina completada! Excelente trabajo.");
         }
       };
 
@@ -523,7 +529,7 @@
                       <Icon name="clock" size={40} className="text-blue-900" />
                     </div>
                     <h2 className="text-xl md:text-2xl text-slate-500 font-medium mb-2">Descanso Activo</h2>
-                    <div className="text-6xl md:text-8xl font-black text-blue-950 tabular-nums tracking-tighter mb-4 md:mb-6 drop-shadow-sm">{formatTime(timeLeft)}</div>
+                    <div className="text-7xl md:text-8xl font-black text-blue-950 tabular-nums tracking-tighter mb-4 md:mb-6 drop-shadow-sm">{formatTime(timeLeft)}</div>
                     
                     <p className="text-base md:text-lg text-slate-600 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100 mb-6 font-medium">
                       {currentSet < currentExercise.sets 
@@ -580,6 +586,34 @@
             </div>
 
             <div className={`mt-auto sticky bottom-0 bg-gradient-to-t ${isTheaterMode ? 'from-slate-950 via-slate-950' : 'from-slate-50 via-slate-50'} to-transparent pb-4 pt-6 z-20 ${isResting ? 'opacity-0 pointer-events-none' : 'transition-colors duration-500'}`}>
+              
+              {/* NUEVO: INPUT PARA REGISTRO DE CARGAS */}
+              <div className="flex flex-col md:flex-row gap-3 mb-3">
+                 <div className="flex items-center gap-3 bg-white p-3 rounded-2xl shadow-md border border-blue-100 flex-1">
+                   <div className="bg-blue-50 p-2.5 rounded-xl text-blue-900 shrink-0">
+                     <Icon name="dumbbell" size={24} />
+                   </div>
+                   <div className="flex-1 min-w-0">
+                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Carga Utilizada</p>
+                     <input 
+                       type="text" 
+                       value={currentWeight}
+                       onChange={e => setCurrentWeight(e.target.value)}
+                       placeholder="Ej. 60 kg"
+                       className="w-full bg-transparent font-black text-xl md:text-2xl text-blue-950 focus:outline-none placeholder:text-slate-300"
+                     />
+                   </div>
+                   {progressHistory[currentExercise.name.toLowerCase().trim()] && (
+                     <div className="text-right border-l border-slate-100 pl-3 md:pl-4 shrink-0">
+                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Récord Ant.</p>
+                       <p className="text-base md:text-lg font-black text-slate-700 truncate max-w-[80px] md:max-w-[100px]">
+                         {progressHistory[currentExercise.name.toLowerCase().trim()]}
+                       </p>
+                     </div>
+                   )}
+                 </div>
+              </div>
+
               <button onClick={handleNext} className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold text-lg md:text-xl py-4 md:py-5 rounded-2xl shadow-[0_8px_30px_rgb(30,58,138,0.3)] transition-all active:scale-[0.98] flex items-center justify-center gap-3">
                 {currentExercise.isBiserie ? <Icon name="link" size={24} /> : <Icon name="check-circle" size={24} />}
                 {currentExercise.isBiserie ? "Siguiente Ejercicio (Sin Descanso)" : currentSet === currentExercise.sets ? "Completar Ejercicio" : "Serie Terminada"}
@@ -779,14 +813,12 @@
         reader.readAsBinaryString(file);
       };
 
-      // 🟢 NUEVA FUNCIÓN: EXPORTAR A EXCEL
       const handleExportExcel = () => {
         if (exercises.length === 0) {
           setAlertMsg("No hay ejercicios para exportar. Agrega al menos uno.");
           return;
         }
 
-        // 1. Mapeamos la data de la app al formato exacto de nuestra plantilla
         const dataToExport = exercises.map(ex => ({
           "Bloque": ex.block,
           "Ejercicio": ex.name,
@@ -800,12 +832,10 @@
           "Enlace": ex.videoUrl
         }));
 
-        // 2. Creamos el archivo Excel en memoria
         const ws = window.XLSX.utils.json_to_sheet(dataToExport);
         const wb = window.XLSX.utils.book_new();
         window.XLSX.utils.book_append_sheet(wb, ws, "Rutina");
 
-        // 3. Lo descargamos con el nombre de la rutina
         const fileName = routineName ? `${routineName}.xlsx` : "Mi_Rutina.xlsx";
         window.XLSX.writeFile(wb, fileName);
       };
@@ -1333,7 +1363,10 @@
       const [activeRoutine, setActiveRoutine] = useState(null);
       const [routineToEdit, setRoutineToEdit] = useState(null);
 
+      // --- SISTEMA DE NUBE Y ALMACENAMIENTO ---
       const [routines, setRoutines] = useState([]);
+      const [progressHistory, setProgressHistory] = useState({}); // NUEVO ESTADO PARA EL REGISTRO DE CARGAS
+
       const [isUsingCloud, setIsUsingCloud] = useState(false);
       const [supabaseClient, setSupabaseClient] = useState(null);
 
@@ -1359,7 +1392,10 @@
           const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
             setSession(session);
             if (session) fetchSupabaseRoutines(client, session.user);
-            else setRoutines([]);
+            else {
+              setRoutines([]);
+              setProgressHistory({});
+            }
           });
 
           return () => subscription.unsubscribe();
@@ -1373,6 +1409,9 @@
         try {
           const saved = window.localStorage.getItem('gemelosprofit_routines');
           setRoutines(saved ? JSON.parse(saved) : []);
+
+          const savedProgress = window.localStorage.getItem('gemelosprofit_progress');
+          if (savedProgress) setProgressHistory(JSON.parse(savedProgress));
         } catch (e) {
           setRoutines([]);
         }
@@ -1386,11 +1425,19 @@
           loadLocalRoutines(); 
         } else if (data) {
           const allRoutines = data.map(row => row.routine_data);
-          
           const userEmail = currentUser?.email?.toLowerCase() || "";
           const isAdmin = userEmail && ADMIN_EMAIL && userEmail === ADMIN_EMAIL.toLowerCase();
 
+          // Extraemos el historial de progreso (Lo guardamos con un ID especial para no tener que crear nuevas tablas)
+          const userProgressData = allRoutines.find(r => r.type === 'progress' && r.owner === userEmail);
+          if (userProgressData && userProgressData.history) {
+             setProgressHistory(userProgressData.history);
+             window.localStorage.setItem('gemelosprofit_progress', JSON.stringify(userProgressData.history));
+          }
+
+          // Filtramos las rutinas reales (descartando el archivo de progreso)
           const filteredRoutines = allRoutines.filter(routine => {
+            if (routine.type === 'progress') return false; 
             if (isAdmin) return true; 
             
             const assignedTo = routine.assignedTo || "todos";
@@ -1407,7 +1454,6 @@
         const currentUser = session?.user;
         
         if (!isDelete && !routineData.owner) routineData.owner = currentUser?.email || "local_user";
-        
         if (!isDelete && routineData.assignedTo === undefined) routineData.assignedTo = "todos";
 
         setRoutines(prevRoutines => {
@@ -1423,7 +1469,6 @@
           if (!isUsingCloud) {
             window.localStorage.setItem('gemelosprofit_routines', JSON.stringify(newRoutines));
           }
-          
           return newRoutines;
         });
 
@@ -1437,6 +1482,32 @@
               routine_data: routineData
             });
           }
+        }
+      };
+
+      // 🟢 NUEVO: Función para guardar el progreso del cliente en la base de datos de forma silenciosa
+      const handleSaveProgress = async (exerciseName, weight) => {
+        if (!weight) return;
+        const key = exerciseName.toLowerCase().trim();
+        const newHistory = { ...progressHistory, [key]: weight };
+        
+        setProgressHistory(newHistory);
+        window.localStorage.setItem('gemelosprofit_progress', JSON.stringify(newHistory));
+
+        if (isUsingCloud && supabaseClient && session?.user) {
+          const progressData = {
+            id: `progress_${session.user.id}`,
+            type: 'progress',
+            owner: session.user.email,
+            history: newHistory
+          };
+          
+          // Lo enviamos a Supabase en segundo plano
+          supabaseClient.from('routines').upsert({
+            id: progressData.id,
+            user_id: session.user.id,
+            routine_data: progressData
+          });
         }
       };
 
@@ -1486,7 +1557,12 @@
       const isAdmin = session?.user?.email && ADMIN_EMAIL && session.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
       if (currentView === 'workout' && activeRoutine) {
-        return <WorkoutPlayer routine={activeRoutine} onGoBack={() => setCurrentView('home')} />;
+        return <WorkoutPlayer 
+                  routine={activeRoutine} 
+                  onGoBack={() => setCurrentView('home')} 
+                  progressHistory={progressHistory}
+                  onSaveProgress={handleSaveProgress}
+               />;
       }
 
       if (currentView === 'creator') {
