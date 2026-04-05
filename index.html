@@ -53,7 +53,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
-    const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
+    const ADMIN_EMAIL = "jantonio.as@gmail.com";
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -75,6 +75,14 @@
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
+    };
+
+    const maskEmail = (email) => {
+      if (!email || email === 'local_user') return 'Atleta Anónimo';
+      const parts = email.split('@');
+      const name = parts[0];
+      if (name.length <= 3) return name + '***';
+      return name.substring(0, 4) + '***';
     };
 
     // ==========================================
@@ -156,6 +164,7 @@
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
       const [currentWeight, setCurrentWeight] = useState("");
+      const [earnedPoints, setEarnedPoints] = useState(0); // Puntos ganados en esta sesión
 
       const timerRef = useRef(null);
       const recognitionRef = useRef(null);
@@ -190,7 +199,10 @@
              } else {
                setIsFinished(true);
                speak("¡Rutina completada! Excelente trabajo.");
-               if (onFinishWorkout) onFinishWorkout(); // 🟢 REGISTRAR ENTRENAMIENTO COMPLETADO
+               if (onFinishWorkout) {
+                 const pts = onFinishWorkout(workoutPlan.length);
+                 setEarnedPoints(pts);
+               }
              }
           }
         };
@@ -378,13 +390,22 @@
         return (
           <div className="h-[100dvh] bg-slate-50 text-slate-800 flex flex-col items-center justify-center p-6 font-sans overflow-hidden">
             <Icon name="check-circle" size={96} className="text-blue-900 mb-6" />
-            <h1 className="text-3xl md:text-4xl font-bold mb-4 text-blue-950 text-center">¡Entrenamiento Completado!</h1>
+            <h1 className="text-3xl md:text-4xl font-bold mb-2 text-blue-950 text-center">¡Entrenamiento Completado!</h1>
             <p className="text-slate-600 text-lg mb-8 text-center">Has superado la rutina: {routine.name}</p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button onClick={() => { setIsFinished(false); setCurrentExerciseIndex(0); setCurrentSet(1); }} className="px-8 py-4 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-semibold transition shadow-lg">
+            
+            {/* PUNTOS GANADOS */}
+            {earnedPoints > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-6 py-4 rounded-2xl mb-8 font-bold text-xl flex items-center justify-center gap-3 w-full max-w-sm animate-in zoom-in shadow-sm">
+                 <Icon name="star" size={28} className="text-yellow-500 fill-current" />
+                 ¡+ {earnedPoints} ProFit Points!
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
+              <button onClick={() => { setIsFinished(false); setCurrentExerciseIndex(0); setCurrentSet(1); }} className="w-full py-4 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-semibold transition shadow-lg">
                 Repetir Rutina
               </button>
-              <button onClick={onGoBack} className="px-8 py-4 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-semibold transition shadow-lg">
+              <button onClick={onGoBack} className="w-full py-4 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-semibold transition shadow-lg">
                 Ir al Inicio
               </button>
             </div>
@@ -1303,7 +1324,7 @@
 
                     <div className="space-y-4">
                       {routines.map(routine => {
-                        if (routine.type === 'progress') return null; // Ocultar info tecnica
+                        if (routine.type === 'progress') return null;
 
                         const isPublic = routine.assignedTo === "todos";
                         const assignedEmails = routine.assignedTo && routine.assignedTo !== "todos" && routine.assignedTo !== "nadie" ? routine.assignedTo.split(',').map(e=>e.trim().toLowerCase()) : [];
@@ -1365,7 +1386,11 @@
       // --- SISTEMA DE NUBE Y ALMACENAMIENTO ---
       const [routines, setRoutines] = useState([]);
       const [progressHistory, setProgressHistory] = useState({}); 
-      const [activityDates, setActivityDates] = useState([]); // 🟢 NUEVO: REGISTRO DE DÍAS ENTRENADOS
+      const [activityDates, setActivityDates] = useState([]);
+      const [userScore, setUserScore] = useState(0); // 🟢 PUNTUACIÓN DEL USUARIO
+
+      const [allUsersProgress, setAllUsersProgress] = useState([]); // 🟢 PARA EL LEADERBOARD
+      const [showLeaderboard, setShowLeaderboard] = useState(false);
 
       const [isUsingCloud, setIsUsingCloud] = useState(false);
       const [supabaseClient, setSupabaseClient] = useState(null);
@@ -1396,6 +1421,7 @@
               setRoutines([]);
               setProgressHistory({});
               setActivityDates([]);
+              setUserScore(0);
             }
           });
 
@@ -1416,6 +1442,7 @@
              const progData = JSON.parse(savedProgressStr);
              if (progData.history) setProgressHistory(progData.history);
              if (progData.activity) setActivityDates(progData.activity);
+             if (progData.score) setUserScore(progData.score);
           }
         } catch (e) {
           setRoutines([]);
@@ -1433,17 +1460,20 @@
           const userEmail = currentUser?.email?.toLowerCase() || "";
           const isAdmin = userEmail && ADMIN_EMAIL && userEmail === ADMIN_EMAIL.toLowerCase();
 
-          const userProgressData = allRoutines.find(r => r.type === 'progress' && r.owner === userEmail);
+          // 🟢 Extraemos TODO el progreso para la tabla de líderes
+          const allProgress = allRoutines.filter(r => r.type === 'progress');
+          setAllUsersProgress(allProgress);
+
+          const userProgressData = allProgress.find(r => r.owner === userEmail);
           if (userProgressData) {
-             if (userProgressData.history) {
-                 setProgressHistory(userProgressData.history);
-             }
-             if (userProgressData.activity) {
-                 setActivityDates(userProgressData.activity);
-             }
+             if (userProgressData.history) setProgressHistory(userProgressData.history);
+             if (userProgressData.activity) setActivityDates(userProgressData.activity);
+             if (userProgressData.score) setUserScore(userProgressData.score);
+             
              window.localStorage.setItem('gemelosprofit_progress', JSON.stringify({
                  history: userProgressData.history || {},
-                 activity: userProgressData.activity || []
+                 activity: userProgressData.activity || [],
+                 score: userProgressData.score || 0
              }));
           }
 
@@ -1496,17 +1526,18 @@
         }
       };
 
-      // 🟢 CONTROL CENTRALIZADO DE PROGRESO
-      const updateUserProgress = async (newHistory, newActivity) => {
+      const updateUserProgress = async (newHistory, newActivity, newScore) => {
         setProgressHistory(newHistory);
         setActivityDates(newActivity);
+        setUserScore(newScore);
         
         const progressData = {
           id: `progress_${session?.user?.id || 'local'}`,
           type: 'progress',
           owner: session?.user?.email || 'local_user',
           history: newHistory,
-          activity: newActivity
+          activity: newActivity,
+          score: newScore
         };
         
         window.localStorage.setItem('gemelosprofit_progress', JSON.stringify(progressData));
@@ -1524,15 +1555,52 @@
         if (!weight) return;
         const key = exerciseName.toLowerCase().trim();
         const newHistory = { ...progressHistory, [key]: weight };
-        updateUserProgress(newHistory, activityDates);
+        updateUserProgress(newHistory, activityDates, userScore);
       };
 
-      const handleMarkWorkoutComplete = () => {
+      // 🟢 MOTOR DE PUNTOS PROFIT (Se llama al terminar rutina)
+      const handleMarkWorkoutComplete = (exercisesCount) => {
         const todayStr = getLocalDateStr();
-        if (!activityDates.includes(todayStr)) {
-          const newActivity = [...activityDates, todayStr];
-          updateUserProgress(progressHistory, newActivity);
+        let tempActivity = [...activityDates];
+        
+        if (!tempActivity.includes(todayStr)) {
+          tempActivity.push(todayStr);
         }
+
+        // Calcular la racha para ver si aplica multiplicador
+        let streak = 0;
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        let curr = new Date(today);
+
+        if (tempActivity.includes(getLocalDateStr(curr))) {
+          streak++;
+          curr.setDate(curr.getDate() - 1);
+        } else {
+          curr.setDate(curr.getDate() - 1);
+          if (!tempActivity.includes(getLocalDateStr(curr))) {
+             curr = null; 
+          }
+        }
+
+        if (curr) {
+           while(true) {
+              if (tempActivity.includes(getLocalDateStr(curr))) {
+                streak++;
+                curr.setDate(curr.getDate() - 1);
+              } else {
+                break;
+              }
+           }
+        }
+
+        // Reglas del juego: 10 pts por ejercicio + 50 de bono final. x1.5 si Racha >= 3
+        const multiplier = streak >= 3 ? 1.5 : 1;
+        const earnedPoints = Math.floor((exercisesCount * 10 + 50) * multiplier);
+        const newTotalScore = userScore + earnedPoints;
+
+        updateUserProgress(progressHistory, tempActivity, newTotalScore);
+        return earnedPoints; // Devuelve los puntos para mostrarlos en la pantalla final
       };
 
       const handleStartRoutine = (routine) => {
@@ -1579,7 +1647,6 @@
         let streak = 0;
         let curr = new Date(today);
 
-        // Calcular Racha (Streak)
         const todayStr = getLocalDateStr(curr);
         if (activityDates.includes(todayStr)) {
           streak++;
@@ -1588,7 +1655,7 @@
           curr.setDate(curr.getDate() - 1);
           const yestStr = getLocalDateStr(curr);
           if (!activityDates.includes(yestStr)) {
-             curr = null; // Racha rota
+             curr = null; 
           }
         }
 
@@ -1604,7 +1671,6 @@
            }
         }
 
-        // Calcular visual de los últimos 7 días
         const last7Days = [];
         const dayNames = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
         for (let i = 6; i >= 0; i--) {
@@ -1622,41 +1688,42 @@
               <Icon name="trending-up" size={24} className="text-blue-600" /> Mi Progreso
             </h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-               {/* Racha */}
-               <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5 flex items-center gap-4">
-                 <div className="w-12 h-12 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center shrink-0">
-                   <Icon name="flame" size={28} />
-                 </div>
-                 <div>
-                   <p className="text-xs font-bold text-orange-600 uppercase tracking-wider">Racha Actual</p>
-                   <p className="text-2xl font-black text-orange-950">{streak} días</p>
-                 </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-6">
+               
+               {/* 🟢 TARJETA DE PROFIT POINTS (LEADERBOARD) */}
+               <div 
+                 className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all"
+                 onClick={() => setShowLeaderboard(true)}
+                 title="Haz clic para ver el Ranking Global"
+               >
+                 <Icon name="star" size={28} className="text-yellow-500 mb-2 fill-current" />
+                 <p className="text-[10px] md:text-xs font-bold text-yellow-700 uppercase tracking-wider">ProFit Points</p>
+                 <p className="text-xl md:text-2xl font-black text-yellow-950">{userScore} pts</p>
                </div>
 
-               {/* Entrenamientos Totales */}
-               <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 flex items-center gap-4">
-                 <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
-                   <Icon name="calendar-check" size={24} />
-                 </div>
-                 <div>
-                   <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Entrenamientos</p>
-                   <p className="text-2xl font-black text-blue-950">{activityDates.length} totales</p>
-                 </div>
+               <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center">
+                 <Icon name="flame" size={28} className="text-orange-500 mb-2" />
+                 <p className="text-[10px] md:text-xs font-bold text-orange-700 uppercase tracking-wider">Racha Actual</p>
+                 <p className="text-xl md:text-2xl font-black text-orange-950">{streak} días</p>
                </div>
 
-               {/* Actividad 7 Dias */}
+               <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center">
+                 <Icon name="calendar-check" size={24} className="text-blue-500 mb-2" />
+                 <p className="text-[10px] md:text-xs font-bold text-blue-700 uppercase tracking-wider">Completados</p>
+                 <p className="text-xl md:text-2xl font-black text-blue-950">{activityDates.length}</p>
+               </div>
+
                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col justify-center">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 text-center">Últimos 7 días</p>
-                  <div className="flex justify-between items-center px-2">
+                  <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 text-center">Últimos 7 días</p>
+                  <div className="flex justify-between items-center px-1">
                      {last7Days.map((day, idx) => {
                         const isCompleted = activityDates.includes(day.dateStr);
                         return (
-                          <div key={idx} className="flex flex-col items-center gap-1.5">
-                             <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${isCompleted ? 'bg-green-500 border-green-600 text-white shadow-sm' : 'bg-white border-slate-200 text-transparent'}`}>
+                          <div key={idx} className="flex flex-col items-center gap-1">
+                             <div className={`w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center border ${isCompleted ? 'bg-green-500 border-green-600 text-white shadow-sm' : 'bg-white border-slate-200 text-transparent'}`}>
                                {isCompleted && <Icon name="check" size={12} strokeWidth={4} />}
                              </div>
-                             <span className="text-[10px] font-bold text-slate-400">{day.dayLetter}</span>
+                             <span className="text-[9px] font-bold text-slate-400">{day.dayLetter}</span>
                           </div>
                         )
                      })}
@@ -1664,7 +1731,6 @@
                </div>
             </div>
 
-            {/* Mejores Marcas (Solo se muestra si ya guardó algún peso) */}
             {Object.keys(progressHistory).length > 0 && (
                <div className="border-t border-slate-100 pt-6 mt-2">
                  <p className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
@@ -1713,7 +1779,47 @@
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-12 font-sans relative">
           
-          {/* Modal de Confirmación Principal */}
+          {/* 🟢 MODAL RANKING GLOBAL (LEADERBOARD) */}
+          {showLeaderboard && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+               <div className="bg-white p-6 md:p-8 rounded-3xl shadow-2xl max-w-md w-full relative max-h-[85vh] flex flex-col animate-in zoom-in-95 duration-200">
+                 <button onClick={() => setShowLeaderboard(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+                   <Icon name="x" size={24} />
+                 </button>
+                 
+                 <div className="text-center mb-6">
+                   <div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-3 text-yellow-500">
+                     <Icon name="trophy" size={32} />
+                   </div>
+                   <h2 className="text-2xl font-black text-blue-950">Ranking Global</h2>
+                   <p className="text-slate-500 text-sm">Los mejores atletas de Gemelos ProFit Gym</p>
+                 </div>
+
+                 <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                   {allUsersProgress.sort((a,b) => (b.score||0) - (a.score||0)).slice(0,10).map((u, i) => {
+                      const isMe = u.owner === (session?.user?.email || 'local_user');
+                      return (
+                        <div key={i} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${isMe ? 'bg-blue-50 border-blue-300 shadow-sm scale-[1.02]' : 'bg-slate-50 border-slate-100'}`}>
+                           <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black shrink-0 ${i===0 ? 'bg-yellow-200 text-yellow-700 shadow-sm' : i===1 ? 'bg-slate-300 text-slate-600' : i===2 ? 'bg-orange-200 text-orange-700' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                                 {i+1}
+                              </div>
+                              <span className={`font-bold truncate ${isMe ? 'text-blue-900' : 'text-slate-600'}`}>
+                                 {isMe ? 'Tú (Atleta)' : maskEmail(u.owner)}
+                              </span>
+                           </div>
+                           <span className={`font-black shrink-0 ml-2 ${isMe ? 'text-blue-600' : 'text-slate-400'}`}>
+                             {u.score || 0} pts
+                           </span>
+                        </div>
+                      )
+                   })}
+                   {allUsersProgress.length === 0 && <p className="text-center text-slate-400 mt-10">Aún no hay puntuaciones registradas.</p>}
+                 </div>
+               </div>
+            </div>
+          )}
+
           {confirmDialog && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
                <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
