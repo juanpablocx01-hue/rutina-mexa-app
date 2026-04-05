@@ -53,7 +53,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
-    const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
+    const ADMIN_EMAIL = "jantonio.as@gmail.com";
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -151,32 +151,33 @@
 
       const timerRef = useRef(null);
       const recognitionRef = useRef(null);
+      const handleNextRef = useRef(null);
+      const voiceEnabledRef = useRef(voiceEnabled);
+
       const currentExercise = workoutPlan[currentExerciseIndex];
+
+      // Mantener referencias actualizadas para que los eventos de voz accedan al estado más reciente
+      useEffect(() => {
+        handleNextRef.current = handleNext;
+        voiceEnabledRef.current = voiceEnabled;
+      });
 
       useEffect(() => { setIsTheaterMode(false); }, [currentExerciseIndex]);
 
-      // --- MANEJO DEL BOTÓN DE VOZ ---
-      const handleVoiceToggle = () => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-          alert("⚠️ Tu navegador no soporta el Control por Voz.\n\nTe recomendamos usar Google Chrome en Android o Safari en iPhone.");
-          return;
-        }
-        setVoiceEnabled(!voiceEnabled);
-      };
-
+      // --- INICIALIZACIÓN DE CONTROL DE VOZ (UNA SOLA VEZ) ---
       useEffect(() => {
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = true;
-        recognitionRef.current.lang = 'es-ES';
-        recognitionRef.current.interimResults = false;
+        if (!SpeechRecognition) return;
 
-        recognitionRef.current.onresult = (event) => {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.lang = 'es-ES';
+        recognition.interimResults = false;
+
+        recognition.onresult = (event) => {
           const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
           if (transcript.includes('siguiente') || transcript.includes('listo') || transcript.includes('terminé') || transcript.includes('termine')) {
-            handleNext();
+            if (handleNextRef.current) handleNextRef.current();
           } else if (transcript.includes('ampliar')) {
             setIsTheaterMode(true);
           } else if (transcript.includes('reducir')) {
@@ -184,20 +185,43 @@
           }
         };
 
-        recognitionRef.current.onend = () => {
-          if (voiceEnabled) { try { recognitionRef.current.start(); } catch (e) { } }
+        recognition.onend = () => {
+          if (voiceEnabledRef.current) {
+            try { recognition.start(); } catch (e) { }
+          }
         };
 
-        return () => { if (recognitionRef.current) recognitionRef.current.stop(); };
-      }, [voiceEnabled, currentExerciseIndex, currentSet, isResting]);
+        recognitionRef.current = recognition;
 
-      useEffect(() => {
-        if (voiceEnabled && recognitionRef.current) {
-          try { recognitionRef.current.start(); } catch (e) { }
-        } else if (!voiceEnabled && recognitionRef.current) {
-          recognitionRef.current.stop();
+        return () => {
+          if (recognitionRef.current) {
+            recognitionRef.current.stop();
+          }
+        };
+      }, []);
+
+      // --- MANEJO DEL BOTÓN DE VOZ (Llamada directa instantánea para móviles) ---
+      const handleVoiceToggle = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          alert("⚠️ Tu navegador no soporta el Control por Voz.\n\nTe recomendamos usar Google Chrome en Android o Safari en iPhone.");
+          return;
         }
-      }, [voiceEnabled]);
+        
+        if (!voiceEnabled) {
+          setVoiceEnabled(true);
+          voiceEnabledRef.current = true;
+          try {
+            recognitionRef.current.start(); // Clave para móviles: iniciar directamente en el clic
+          } catch (e) {}
+        } else {
+          setVoiceEnabled(false);
+          voiceEnabledRef.current = false;
+          try {
+            recognitionRef.current.stop();
+          } catch (e) {}
+        }
+      };
 
       const speak = useCallback((text) => {
         if (!ttsEnabled || !('speechSynthesis' in window)) return;
