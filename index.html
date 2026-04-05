@@ -161,8 +161,6 @@
           setIsResting(false);
           
           if (currentSet < currentExercise.sets) {
-             // Es un avance entre series. Hay que revisar si estamos en un circuito/biserie
-             // para regresar al primer ejercicio del circuito.
              let firstIdx = currentExerciseIndex;
              while(firstIdx > 0 && workoutPlan[firstIdx - 1].isBiserie) {
                 firstIdx--;
@@ -170,7 +168,6 @@
              setCurrentExerciseIndex(firstIdx);
              setCurrentSet(prev => prev + 1);
           } else {
-             // El ejercicio (o bloque del circuito) terminó. Avanzamos al siguiente bloque.
              if (currentExerciseIndex < workoutPlan.length - 1) {
                setCurrentExerciseIndex(prev => prev + 1);
                setCurrentSet(1);
@@ -290,7 +287,6 @@
           return;
         }
 
-        // Si es parte de una Biserie (Salto instantáneo al siguiente ejercicio)
         if (currentExercise.isBiserie) {
           if (currentExerciseIndex < workoutPlan.length - 1) {
             setCurrentExerciseIndex(prev => prev + 1);
@@ -324,6 +320,16 @@
           } else {
             if (finishRestAndAdvanceRef.current) finishRestAndAdvanceRef.current();
           }
+        }
+      };
+
+      const advanceExercise = () => {
+        if (currentExerciseIndex < workoutPlan.length - 1) {
+          setCurrentExerciseIndex(prev => prev + 1);
+          setCurrentSet(1);
+        } else {
+          setIsFinished(true);
+          speak("¡Rutina completada! Excelente trabajo.");
         }
       };
 
@@ -393,7 +399,6 @@
             </div>
           )}
 
-          {/* OVERLAY FONDO OSCURO PARA MÓVIL (CUANDO MENÚ ESTÁ ABIERTO) */}
           {isSidebarOpen && (
             <div 
               className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden backdrop-blur-sm transition-opacity"
@@ -401,7 +406,6 @@
             />
           )}
 
-          {/* ASIDE (MENÚ LATERAL) - Responsive */}
           <aside className={`
             fixed lg:static top-0 left-0 h-full z-50
             w-[85vw] sm:w-96 bg-white border-r border-slate-200 flex flex-col shadow-2xl lg:shadow-[4px_0_24px_rgba(0,0,0,0.02)]
@@ -477,7 +481,6 @@
           {/* MAIN CONTAINER */}
           <main className={`flex-1 flex flex-col h-[100dvh] overflow-y-auto relative transition-all duration-500 ${isTheaterMode ? 'p-2 lg:p-4 bg-slate-950' : 'p-3 md:p-6 lg:p-10'}`}>
             
-            {/* BARRA SUPERIOR MÓVIL / ESCRITORIO */}
             <div className={`justify-between items-center mb-4 lg:mb-8 bg-white/70 backdrop-blur-md p-3 lg:p-4 rounded-2xl border border-slate-200 shadow-sm flex gap-3 ${isTheaterMode ? 'hidden' : 'flex'}`}>
               
               <div className="flex items-center gap-2 lg:gap-3 shrink-0 overflow-hidden">
@@ -540,7 +543,7 @@
                 <h1 className={`font-extrabold text-blue-950 mb-4 md:mb-6 leading-tight ${isTheaterMode ? 'hidden' : 'text-2xl md:text-4xl lg:text-5xl'}`}>{currentExercise.name}</h1>
                 
                 <div className={`w-full bg-slate-950 overflow-hidden relative border border-slate-200 transition-all duration-500 ${isTheaterMode ? 'flex-1 rounded-2xl mb-4 border-slate-800' : 'aspect-video rounded-2xl md:rounded-3xl shadow-xl mb-6 md:mb-8'}`}>
-                  <button onClick={() => setIsTheaterMode(!isTheaterMode)} className="absolute top-2 right-2 md:top-4 md:right-4 z-20 p-2 md:p-2.5 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-xl backdrop-blur-md transition-all shadow-lg border border-white/10" title={isTheaterMode ? "Reducir video" : "Ampliar video"}>
+                  <button onClick={() => setIsTheaterMode(!isTheaterMode)} className="absolute top-2 right-2 md:top-4 md:right-4 z-20 p-2 md:p-2.5 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-lg md:rounded-xl backdrop-blur-md transition-all shadow-lg border border-white/10" title={isTheaterMode ? "Reducir video" : "Ampliar video"}>
                     <Icon name={isTheaterMode ? "minimize" : "maximize"} size={20} />
                   </button>
                   {isTheaterMode && (
@@ -776,6 +779,37 @@
         reader.readAsBinaryString(file);
       };
 
+      // 🟢 NUEVA FUNCIÓN: EXPORTAR A EXCEL
+      const handleExportExcel = () => {
+        if (exercises.length === 0) {
+          setAlertMsg("No hay ejercicios para exportar. Agrega al menos uno.");
+          return;
+        }
+
+        // 1. Mapeamos la data de la app al formato exacto de nuestra plantilla
+        const dataToExport = exercises.map(ex => ({
+          "Bloque": ex.block,
+          "Ejercicio": ex.name,
+          "Series": ex.sets,
+          "Repeticiones": ex.reps,
+          "Biserie": ex.isBiserie ? "SI" : "NO",
+          "Descansos": ex.rests.join(", "),
+          "Intensidad": ex.intensity,
+          "Descanso Final": ex.restAfterExercise || 0,
+          "Notas": ex.benefits,
+          "Enlace": ex.videoUrl
+        }));
+
+        // 2. Creamos el archivo Excel en memoria
+        const ws = window.XLSX.utils.json_to_sheet(dataToExport);
+        const wb = window.XLSX.utils.book_new();
+        window.XLSX.utils.book_append_sheet(wb, ws, "Rutina");
+
+        // 3. Lo descargamos con el nombre de la rutina
+        const fileName = routineName ? `${routineName}.xlsx` : "Mi_Rutina.xlsx";
+        window.XLSX.writeFile(wb, fileName);
+      };
+
       const handleSaveRoutine = () => {
         if (!routineName) return setAlertMsg("Por favor, ponle nombre a la rutina.");
         if (exercises.length === 0) return setAlertMsg("Agrega al menos un ejercicio.");
@@ -958,7 +992,6 @@
                     </div>
                   </div>
 
-                  {/* BOTON BISERIE */}
                   <div 
                     className="mt-2 p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center gap-3 cursor-pointer" 
                     onClick={() => setNewEx({...newEx, isBiserie: !newEx.isBiserie})}
@@ -993,6 +1026,17 @@
                   <span>Ejercicios de la Rutina</span>
                   
                   <div className="flex items-center gap-3">
+                    
+                    {/* 🟢 BOTÓN EXPORTAR EXCEL */}
+                    <button 
+                      onClick={handleExportExcel} 
+                      className="bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition border border-blue-200 shadow-sm"
+                    >
+                      <Icon name="download" size={18} /> 
+                      <span className="hidden sm:inline">Exportar Excel</span>
+                      <span className="sm:hidden">Exportar</span>
+                    </button>
+
                     <label className="cursor-pointer bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-300 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition border border-green-200 shadow-sm">
                       <Icon name="file-spreadsheet" size={18} /> 
                       <span className="hidden sm:inline">Importar Excel</span>
