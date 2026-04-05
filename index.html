@@ -53,7 +53,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
-    const ADMIN_EMAIL = "jantonio.as@gmail.com";
+    const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -67,6 +67,14 @@
       }, [name, size, className]);
 
       return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+    };
+
+    // Helper de fechas para analíticas
+    const getLocalDateStr = (date = new Date()) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     };
 
     // ==========================================
@@ -131,7 +139,7 @@
     // ==========================================
     // COMPONENTE: REPRODUCTOR DE RUTINA
     // ==========================================
-    function WorkoutPlayer({ routine, onGoBack, progressHistory = {}, onSaveProgress }) {
+    function WorkoutPlayer({ routine, onGoBack, progressHistory = {}, onSaveProgress, onFinishWorkout }) {
       const workoutPlan = routine.exercises;
       const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
       const [currentSet, setCurrentSet] = useState(1);
@@ -147,7 +155,6 @@
       const [isTheaterMode, setIsTheaterMode] = useState(false);
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-      // NUEVO: Estado para el input de peso
       const [currentWeight, setCurrentWeight] = useState("");
 
       const timerRef = useRef(null);
@@ -158,15 +165,13 @@
 
       const currentExercise = workoutPlan[currentExerciseIndex];
 
-      // Sincronizar el peso del input con el historial al cambiar de ejercicio
       useEffect(() => {
         if (currentExercise) {
           const prevRecord = progressHistory[currentExercise.name.toLowerCase().trim()] || "";
           setCurrentWeight(prevRecord);
         }
-      }, [currentExerciseIndex]); // Se ejecuta solo cuando cambias de ejercicio
+      }, [currentExerciseIndex]);
 
-      // --- MOTOR DE AVANCE (Soporte Biseries/Circuitos) ---
       useEffect(() => {
         finishRestAndAdvanceRef.current = () => {
           setIsResting(false);
@@ -185,6 +190,7 @@
              } else {
                setIsFinished(true);
                speak("¡Rutina completada! Excelente trabajo.");
+               if (onFinishWorkout) onFinishWorkout(); // 🟢 REGISTRAR ENTRENAMIENTO COMPLETADO
              }
           }
         };
@@ -197,7 +203,6 @@
 
       useEffect(() => { setIsTheaterMode(false); }, [currentExerciseIndex]);
 
-      // --- INICIALIZACIÓN DE CONTROL DE VOZ ---
       useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) return;
@@ -271,7 +276,6 @@
         }
       }, [currentExerciseIndex, isResting, isFinished, speak]);
 
-      // --- RELOJ Y TEMPORIZADOR ---
       useEffect(() => {
         if (isResting && timeLeft > 0) {
           timerRef.current = setTimeout(() => {
@@ -291,9 +295,7 @@
         return () => clearInterval(globalTimer);
       }, [isFinished]);
 
-      // --- MOTOR AL DAR CLIC A "SIGUIENTE" ---
       const handleNext = () => {
-        // Guardamos el peso al avanzar de serie/ejercicio
         if (currentWeight.trim() !== "") {
           onSaveProgress(currentExercise.name, currentWeight);
         }
@@ -587,7 +589,6 @@
 
             <div className={`mt-auto sticky bottom-0 bg-gradient-to-t ${isTheaterMode ? 'from-slate-950 via-slate-950' : 'from-slate-50 via-slate-50'} to-transparent pb-4 pt-6 z-20 ${isResting ? 'opacity-0 pointer-events-none' : 'transition-colors duration-500'}`}>
               
-              {/* NUEVO: INPUT PARA REGISTRO DE CARGAS */}
               <div className="flex flex-col md:flex-row gap-3 mb-3">
                  <div className="flex items-center gap-3 bg-white p-3 rounded-2xl shadow-md border border-blue-100 flex-1">
                    <div className="bg-blue-50 p-2.5 rounded-xl text-blue-900 shrink-0">
@@ -864,7 +865,6 @@
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-10 font-sans relative">
           
-          {/* Modal de Alertas del Creador */}
           {alertMsg && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
                <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
@@ -1057,7 +1057,6 @@
                   
                   <div className="flex items-center gap-3">
                     
-                    {/* 🟢 BOTÓN EXPORTAR EXCEL */}
                     <button 
                       onClick={handleExportExcel} 
                       className="bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition border border-blue-200 shadow-sm"
@@ -1199,7 +1198,6 @@
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-10 font-sans relative">
           
-          {/* Modal de Alertas */}
           {alertMsg && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
                <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
@@ -1212,7 +1210,6 @@
             </div>
           )}
 
-          {/* Modal de Confirmación */}
           {confirmDialog && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
                <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
@@ -1306,6 +1303,8 @@
 
                     <div className="space-y-4">
                       {routines.map(routine => {
+                        if (routine.type === 'progress') return null; // Ocultar info tecnica
+
                         const isPublic = routine.assignedTo === "todos";
                         const assignedEmails = routine.assignedTo && routine.assignedTo !== "todos" && routine.assignedTo !== "nadie" ? routine.assignedTo.split(',').map(e=>e.trim().toLowerCase()) : [];
                         const isAssigned = isPublic || assignedEmails.includes(selectedClient);
@@ -1342,7 +1341,7 @@
                           </div>
                         );
                       })}
-                      {routines.length === 0 && (
+                      {routines.filter(r => r.type !== 'progress').length === 0 && (
                         <p className="text-center text-slate-400 py-10">No hay rutinas creadas en el sistema.</p>
                       )}
                     </div>
@@ -1365,7 +1364,8 @@
 
       // --- SISTEMA DE NUBE Y ALMACENAMIENTO ---
       const [routines, setRoutines] = useState([]);
-      const [progressHistory, setProgressHistory] = useState({}); // NUEVO ESTADO PARA EL REGISTRO DE CARGAS
+      const [progressHistory, setProgressHistory] = useState({}); 
+      const [activityDates, setActivityDates] = useState([]); // 🟢 NUEVO: REGISTRO DE DÍAS ENTRENADOS
 
       const [isUsingCloud, setIsUsingCloud] = useState(false);
       const [supabaseClient, setSupabaseClient] = useState(null);
@@ -1395,6 +1395,7 @@
             else {
               setRoutines([]);
               setProgressHistory({});
+              setActivityDates([]);
             }
           });
 
@@ -1410,8 +1411,12 @@
           const saved = window.localStorage.getItem('gemelosprofit_routines');
           setRoutines(saved ? JSON.parse(saved) : []);
 
-          const savedProgress = window.localStorage.getItem('gemelosprofit_progress');
-          if (savedProgress) setProgressHistory(JSON.parse(savedProgress));
+          const savedProgressStr = window.localStorage.getItem('gemelosprofit_progress');
+          if (savedProgressStr) {
+             const progData = JSON.parse(savedProgressStr);
+             if (progData.history) setProgressHistory(progData.history);
+             if (progData.activity) setActivityDates(progData.activity);
+          }
         } catch (e) {
           setRoutines([]);
         }
@@ -1428,14 +1433,20 @@
           const userEmail = currentUser?.email?.toLowerCase() || "";
           const isAdmin = userEmail && ADMIN_EMAIL && userEmail === ADMIN_EMAIL.toLowerCase();
 
-          // Extraemos el historial de progreso (Lo guardamos con un ID especial para no tener que crear nuevas tablas)
           const userProgressData = allRoutines.find(r => r.type === 'progress' && r.owner === userEmail);
-          if (userProgressData && userProgressData.history) {
-             setProgressHistory(userProgressData.history);
-             window.localStorage.setItem('gemelosprofit_progress', JSON.stringify(userProgressData.history));
+          if (userProgressData) {
+             if (userProgressData.history) {
+                 setProgressHistory(userProgressData.history);
+             }
+             if (userProgressData.activity) {
+                 setActivityDates(userProgressData.activity);
+             }
+             window.localStorage.setItem('gemelosprofit_progress', JSON.stringify({
+                 history: userProgressData.history || {},
+                 activity: userProgressData.activity || []
+             }));
           }
 
-          // Filtramos las rutinas reales (descartando el archivo de progreso)
           const filteredRoutines = allRoutines.filter(routine => {
             if (routine.type === 'progress') return false; 
             if (isAdmin) return true; 
@@ -1485,29 +1496,42 @@
         }
       };
 
-      // 🟢 NUEVO: Función para guardar el progreso del cliente en la base de datos de forma silenciosa
-      const handleSaveProgress = async (exerciseName, weight) => {
-        if (!weight) return;
-        const key = exerciseName.toLowerCase().trim();
-        const newHistory = { ...progressHistory, [key]: weight };
-        
+      // 🟢 CONTROL CENTRALIZADO DE PROGRESO
+      const updateUserProgress = async (newHistory, newActivity) => {
         setProgressHistory(newHistory);
-        window.localStorage.setItem('gemelosprofit_progress', JSON.stringify(newHistory));
+        setActivityDates(newActivity);
+        
+        const progressData = {
+          id: `progress_${session?.user?.id || 'local'}`,
+          type: 'progress',
+          owner: session?.user?.email || 'local_user',
+          history: newHistory,
+          activity: newActivity
+        };
+        
+        window.localStorage.setItem('gemelosprofit_progress', JSON.stringify(progressData));
 
         if (isUsingCloud && supabaseClient && session?.user) {
-          const progressData = {
-            id: `progress_${session.user.id}`,
-            type: 'progress',
-            owner: session.user.email,
-            history: newHistory
-          };
-          
-          // Lo enviamos a Supabase en segundo plano
-          supabaseClient.from('routines').upsert({
+          await supabaseClient.from('routines').upsert({
             id: progressData.id,
             user_id: session.user.id,
             routine_data: progressData
           });
+        }
+      };
+
+      const handleSaveProgress = (exerciseName, weight) => {
+        if (!weight) return;
+        const key = exerciseName.toLowerCase().trim();
+        const newHistory = { ...progressHistory, [key]: weight };
+        updateUserProgress(newHistory, activityDates);
+      };
+
+      const handleMarkWorkoutComplete = () => {
+        const todayStr = getLocalDateStr();
+        if (!activityDates.includes(todayStr)) {
+          const newActivity = [...activityDates, todayStr];
+          updateUserProgress(progressHistory, newActivity);
         }
       };
 
@@ -1548,6 +1572,118 @@
         }
       };
 
+      // 🟢 RENDERIZADO DEL DASHBOARD ANALÍTICO
+      const renderDashboard = () => {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        let streak = 0;
+        let curr = new Date(today);
+
+        // Calcular Racha (Streak)
+        const todayStr = getLocalDateStr(curr);
+        if (activityDates.includes(todayStr)) {
+          streak++;
+          curr.setDate(curr.getDate() - 1);
+        } else {
+          curr.setDate(curr.getDate() - 1);
+          const yestStr = getLocalDateStr(curr);
+          if (!activityDates.includes(yestStr)) {
+             curr = null; // Racha rota
+          }
+        }
+
+        if (curr) {
+           while(true) {
+              const dStr = getLocalDateStr(curr);
+              if (activityDates.includes(dStr)) {
+                streak++;
+                curr.setDate(curr.getDate() - 1);
+              } else {
+                break;
+              }
+           }
+        }
+
+        // Calcular visual de los últimos 7 días
+        const last7Days = [];
+        const dayNames = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(today);
+          d.setDate(d.getDate() - i);
+          last7Days.push({
+            dateStr: getLocalDateStr(d),
+            dayLetter: dayNames[d.getDay()]
+          });
+        }
+
+        return (
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 mb-8 animate-in fade-in slide-in-from-bottom-4">
+            <h2 className="text-xl font-bold text-blue-950 mb-6 flex items-center gap-2">
+              <Icon name="trending-up" size={24} className="text-blue-600" /> Mi Progreso
+            </h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+               {/* Racha */}
+               <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5 flex items-center gap-4">
+                 <div className="w-12 h-12 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center shrink-0">
+                   <Icon name="flame" size={28} />
+                 </div>
+                 <div>
+                   <p className="text-xs font-bold text-orange-600 uppercase tracking-wider">Racha Actual</p>
+                   <p className="text-2xl font-black text-orange-950">{streak} días</p>
+                 </div>
+               </div>
+
+               {/* Entrenamientos Totales */}
+               <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 flex items-center gap-4">
+                 <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+                   <Icon name="calendar-check" size={24} />
+                 </div>
+                 <div>
+                   <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Entrenamientos</p>
+                   <p className="text-2xl font-black text-blue-950">{activityDates.length} totales</p>
+                 </div>
+               </div>
+
+               {/* Actividad 7 Dias */}
+               <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col justify-center">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 text-center">Últimos 7 días</p>
+                  <div className="flex justify-between items-center px-2">
+                     {last7Days.map((day, idx) => {
+                        const isCompleted = activityDates.includes(day.dateStr);
+                        return (
+                          <div key={idx} className="flex flex-col items-center gap-1.5">
+                             <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${isCompleted ? 'bg-green-500 border-green-600 text-white shadow-sm' : 'bg-white border-slate-200 text-transparent'}`}>
+                               {isCompleted && <Icon name="check" size={12} strokeWidth={4} />}
+                             </div>
+                             <span className="text-[10px] font-bold text-slate-400">{day.dayLetter}</span>
+                          </div>
+                        )
+                     })}
+                  </div>
+               </div>
+            </div>
+
+            {/* Mejores Marcas (Solo se muestra si ya guardó algún peso) */}
+            {Object.keys(progressHistory).length > 0 && (
+               <div className="border-t border-slate-100 pt-6 mt-2">
+                 <p className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                   <Icon name="trophy" size={18} className="text-yellow-500" /> Tus Mejores Marcas
+                 </p>
+                 <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar">
+                    {Object.entries(progressHistory).map(([exName, weight], idx) => (
+                      <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 shrink-0 min-w-[140px] max-w-[200px]">
+                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide truncate mb-1" title={exName}>{exName}</p>
+                         <p className="text-lg font-black text-blue-950 truncate">{weight}</p>
+                      </div>
+                    ))}
+                 </div>
+               </div>
+            )}
+          </div>
+        );
+      };
+
       if (!authInitialized) return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-bold">Cargando Gemelos ProFit Gym...</div>;
 
       if (isUsingCloud && !session) {
@@ -1562,6 +1698,7 @@
                   onGoBack={() => setCurrentView('home')} 
                   progressHistory={progressHistory}
                   onSaveProgress={handleSaveProgress}
+                  onFinishWorkout={handleMarkWorkoutComplete}
                />;
       }
 
@@ -1593,7 +1730,7 @@
           )}
 
           <div className="max-w-5xl mx-auto">
-            <header className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
+            <header className="flex flex-col md:flex-row justify-between items-center mb-8 gap-6">
               <div>
                 <h1 className="text-4xl md:text-5xl font-black text-blue-950 mb-2 tracking-tight">Gemelos <span className="text-blue-600">ProFit Gym</span></h1>
                 <div className="flex flex-wrap items-center gap-3">
@@ -1624,6 +1761,9 @@
                 </div>
               )}
             </header>
+
+            {/* DASHBOARD ANALÍTICO */}
+            {renderDashboard()}
 
             <h2 className="text-2xl font-bold text-slate-700 mb-6 flex items-center gap-2">
               <Icon name="folder" size={24} className="text-blue-600" /> Mis Rutinas Guardadas
