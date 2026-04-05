@@ -77,6 +77,17 @@
       return `${year}-${month}-${day}`;
     };
 
+    // Transforma una fecha a formato ISO de Semana (Ej. "2023-W42") para la Meta Semanal
+    const getISOWeekStr = (dateStr) => {
+      const d = new Date(dateStr + "T00:00:00");
+      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = date.getUTCDay() || 7;
+      date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
+      const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1)/7);
+      return `${date.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
+    };
+
     const maskEmail = (email) => {
       if (!email || email === 'local_user') return 'Atleta Anónimo';
       const parts = email.split('@');
@@ -164,7 +175,7 @@
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
       const [currentWeight, setCurrentWeight] = useState("");
-      const [earnedPoints, setEarnedPoints] = useState(0); // Puntos ganados en esta sesión
+      const [earnedPoints, setEarnedPoints] = useState(0);
 
       const timerRef = useRef(null);
       const recognitionRef = useRef(null);
@@ -651,6 +662,7 @@
     // ==========================================
     function RoutineCreator({ initialRoutine, onSave, onCancel }) {
       const [routineName, setRoutineName] = useState(initialRoutine ? initialRoutine.name : "");
+      const [weeklyGoal, setWeeklyGoal] = useState(initialRoutine?.weeklyGoal || 3); // 🟢 NUEVO: META SEMANAL
       const [isPublic, setIsPublic] = useState(initialRoutine?.assignedTo === "todos" || !initialRoutine);
       const [exercises, setExercises] = useState(initialRoutine ? initialRoutine.exercises : []);
       const [editingExerciseIndex, setEditingExerciseIndex] = useState(null);
@@ -879,6 +891,7 @@
           id: initialRoutine?.id || `rutina_${Date.now()}`,
           name: routineName,
           assignedTo: finalAssignedTo,
+          weeklyGoal: Number(weeklyGoal), // 🟢 SE GUARDA LA META SEMANAL
           exercises: exercises
         });
       };
@@ -910,41 +923,55 @@
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
+              
+              {/* 🟢 NUEVO: SELECTOR DE META SEMANAL */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-slate-600 mb-2">Nombre de la Rutina</label>
                   <input type="text" value={routineName} onChange={(e) => setRoutineName(e.target.value)} placeholder="Ej. Día de Pierna Pesado" className="w-full text-xl p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition" />
                 </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 mb-2">Días a la semana (Meta)</label>
+                  <select 
+                    value={weeklyGoal} 
+                    onChange={e => setWeeklyGoal(Number(e.target.value))} 
+                    className="w-full text-xl p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 focus:bg-white transition appearance-none font-bold text-blue-950 cursor-pointer"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7].map(n => (
+                      <option key={n} value={n}>{n} {n === 1 ? 'día' : 'días'}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
                 
-                <div className="flex flex-col gap-2">
-                  <label className="block text-sm font-bold text-slate-600 mb-1 flex items-center gap-2">
-                    <Icon name="globe" size={16} className="text-blue-500" /> Visibilidad de la rutina
-                  </label>
-                  
-                  <div 
-                    onClick={() => setIsPublic(true)} 
-                    className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all select-none ${isPublic ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
-                  >
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${isPublic ? 'border-blue-600' : 'border-slate-300'}`}>
-                      {isPublic && <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>}
-                    </div>
-                    <div>
-                      <p className="font-bold text-blue-950 text-sm">Pública (Todos los clientes)</p>
-                      <p className="text-xs text-slate-500">Visible para cualquier alumno.</p>
-                    </div>
+              <div className="flex flex-col gap-2">
+                <label className="block text-sm font-bold text-slate-600 mb-1 flex items-center gap-2">
+                  <Icon name="globe" size={16} className="text-blue-500" /> Visibilidad de la rutina
+                </label>
+                
+                <div 
+                  onClick={() => setIsPublic(true)} 
+                  className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all select-none ${isPublic ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                >
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${isPublic ? 'border-blue-600' : 'border-slate-300'}`}>
+                    {isPublic && <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>}
                   </div>
-                  
-                  <div 
-                    onClick={() => setIsPublic(false)} 
-                    className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all select-none ${!isPublic ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
-                  >
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${!isPublic ? 'border-blue-600' : 'border-slate-300'}`}>
-                      {!isPublic && <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>}
-                    </div>
-                    <div>
-                      <p className="font-bold text-blue-950 text-sm">Privada (Específica)</p>
-                      <p className="text-xs text-slate-500">Se asigna a clientes desde el panel "Clientes".</p>
-                    </div>
+                  <div>
+                    <p className="font-bold text-blue-950 text-sm">Pública (Todos los clientes)</p>
+                    <p className="text-xs text-slate-500">Visible para cualquier alumno.</p>
+                  </div>
+                </div>
+                
+                <div 
+                  onClick={() => setIsPublic(false)} 
+                  className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all select-none ${!isPublic ? 'bg-blue-50 border-blue-600 shadow-sm ring-1 ring-blue-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                >
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${!isPublic ? 'border-blue-600' : 'border-slate-300'}`}>
+                    {!isPublic && <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>}
+                  </div>
+                  <div>
+                    <p className="font-bold text-blue-950 text-sm">Privada (Específica)</p>
+                    <p className="text-xs text-slate-500">Se asigna a clientes desde el panel "Clientes".</p>
                   </div>
                 </div>
               </div>
@@ -1559,7 +1586,7 @@
         updateUserProgress(newHistory, activityDates, userScore);
       };
 
-      // 🟢 MOTOR DE PUNTOS PROFIT (Se llama al terminar rutina)
+      // 🟢 MOTOR DE PUNTOS Y METAS SEMANALES
       const handleMarkWorkoutComplete = (exercisesCount) => {
         const todayStr = getLocalDateStr();
         let tempActivity = [...activityDates];
@@ -1568,40 +1595,46 @@
           tempActivity.push(todayStr);
         }
 
-        // Calcular la racha para ver si aplica multiplicador
+        // --- CALCULAR RACHA DE SEMANAS PERFECTAS ---
+        const weekCounts = {};
+        tempActivity.forEach(dStr => {
+           const w = getISOWeekStr(dStr);
+           weekCounts[w] = (weekCounts[w] || 0) + 1;
+        });
+
+        // Buscar la meta semanal configurada en las rutinas del usuario, por defecto 3
+        const userRoutines = routines.filter(r => r.type !== 'progress');
+        const currentGoal = userRoutines.reduce((max, r) => Math.max(max, r.weeklyGoal || 3), 3) || 3;
+
         let streak = 0;
         const today = new Date();
         today.setHours(0,0,0,0);
-        let curr = new Date(today);
+        let checkDate = new Date(today);
+        let isFirstWeek = true;
 
-        if (tempActivity.includes(getLocalDateStr(curr))) {
-          streak++;
-          curr.setDate(curr.getDate() - 1);
-        } else {
-          curr.setDate(curr.getDate() - 1);
-          if (!tempActivity.includes(getLocalDateStr(curr))) {
-             curr = null; 
-          }
-        }
+        while (true) {
+            const weekStr = getISOWeekStr(getLocalDateStr(checkDate));
+            const daysDone = weekCounts[weekStr] || 0;
 
-        if (curr) {
-           while(true) {
-              if (tempActivity.includes(getLocalDateStr(curr))) {
+            if (daysDone >= currentGoal) {
                 streak++;
-                curr.setDate(curr.getDate() - 1);
-              } else {
-                break;
-              }
-           }
+            } else {
+                // Si estamos evaluando la semana actual y no ha llegado a la meta, no rompe la racha (todavía hay tiempo)
+                if (!isFirstWeek) {
+                    break;
+                }
+            }
+            isFirstWeek = false;
+            checkDate.setDate(checkDate.getDate() - 7); // Retroceder una semana
         }
 
-        // Reglas del juego: 10 pts por ejercicio + 50 de bono final. x1.5 si Racha >= 3
-        const multiplier = streak >= 3 ? 1.5 : 1;
+        // Reglas del juego: 10 pts por ejercicio + 50 de bono final. x1.5 si Racha >= 2 Semanas Perfectas
+        const multiplier = streak >= 2 ? 1.5 : 1;
         const earnedPoints = Math.floor((exercisesCount * 10 + 50) * multiplier);
         const newTotalScore = userScore + earnedPoints;
 
         updateUserProgress(progressHistory, tempActivity, newTotalScore);
-        return earnedPoints; // Devuelve los puntos para mostrarlos en la pantalla final
+        return earnedPoints; 
       };
 
       const handleStartRoutine = (routine) => {
@@ -1643,34 +1676,37 @@
 
       // 🟢 RENDERIZADO DEL DASHBOARD ANALÍTICO
       const renderDashboard = () => {
+        // Calcular Racha de Semanas y Meta
+        const weekCounts = {};
+        activityDates.forEach(dStr => {
+           const w = getISOWeekStr(dStr);
+           weekCounts[w] = (weekCounts[w] || 0) + 1;
+        });
+
+        const userRoutines = routines.filter(r => r.type !== 'progress');
+        const currentGoal = userRoutines.reduce((max, r) => Math.max(max, r.weeklyGoal || 3), 3) || 3;
+
+        let streak = 0;
         const today = new Date();
         today.setHours(0,0,0,0);
-        let streak = 0;
-        let curr = new Date(today);
+        let checkDate = new Date(today);
+        let isFirstWeek = true;
 
-        const todayStr = getLocalDateStr(curr);
-        if (activityDates.includes(todayStr)) {
-          streak++;
-          curr.setDate(curr.getDate() - 1);
-        } else {
-          curr.setDate(curr.getDate() - 1);
-          const yestStr = getLocalDateStr(curr);
-          if (!activityDates.includes(yestStr)) {
-             curr = null; 
-          }
-        }
+        while (true) {
+            const weekStr = getISOWeekStr(getLocalDateStr(checkDate));
+            const daysDone = weekCounts[weekStr] || 0;
 
-        if (curr) {
-           while(true) {
-              const dStr = getLocalDateStr(curr);
-              if (activityDates.includes(dStr)) {
+            if (daysDone >= currentGoal) {
                 streak++;
-                curr.setDate(curr.getDate() - 1);
-              } else {
-                break;
-              }
-           }
+            } else {
+                if (!isFirstWeek) break;
+            }
+            isFirstWeek = false;
+            checkDate.setDate(checkDate.getDate() - 7);
         }
+
+        const thisWeekStr = getISOWeekStr(getLocalDateStr(today));
+        const daysThisWeek = weekCounts[thisWeekStr] || 0;
 
         const last7Days = [];
         const dayNames = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
@@ -1697,10 +1733,14 @@
                  <p className="text-xl md:text-2xl font-black text-yellow-950">{userScore} pts</p>
                </div>
 
-               <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center">
-                 <Icon name="flame" size={28} className="text-orange-500 mb-2" />
-                 <p className="text-[10px] md:text-xs font-bold text-orange-700 uppercase tracking-wider">Racha Actual</p>
-                 <p className="text-xl md:text-2xl font-black text-orange-950">{streak} días</p>
+               {/* TARJETA RACHA SEMANAL */}
+               <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                 <div className="absolute top-0 left-0 w-full bg-orange-200 text-orange-800 text-[9px] font-bold py-0.5 uppercase tracking-widest text-center">
+                   {daysThisWeek}/{currentGoal} esta semana
+                 </div>
+                 <Icon name="flame" size={28} className="text-orange-500 mb-1 mt-3" />
+                 <p className="text-[10px] md:text-xs font-bold text-orange-700 uppercase tracking-wider">Semanas Perfectas</p>
+                 <p className="text-xl md:text-2xl font-black text-orange-950">{streak}</p>
                </div>
 
                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center">
@@ -1743,7 +1783,7 @@
                </div>
             )}
 
-            {/* 🟢 NUEVO: RANKING GLOBAL INTEGRADO DE FORMA DIRECTA */}
+            {/* RANKING GLOBAL INTEGRADO */}
             {allUsersProgress.length > 0 && (
               <div className="border-t border-slate-100 pt-6 mt-6">
                 <div className="flex items-center justify-between mb-4">
