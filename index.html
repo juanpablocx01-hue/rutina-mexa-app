@@ -53,7 +53,7 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
-    const ADMIN_EMAIL = "jantonio.as@gmail.com"; 
+    const ADMIN_EMAIL = "jantonio.as@gmail.com";
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -592,18 +592,35 @@
                       <div className="bg-blue-600/80 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/10 w-fit"><span className="text-white font-bold text-sm md:text-lg">Serie {currentSet} / {currentExercise.sets}</span></div>
                     </div>
                   )}
-                  {currentExercise.videoUrl ? (
-                    currentExercise.videoUrl.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i) ? (
-                      <img key={currentExercise.videoUrl} className="absolute top-0 left-0 w-full h-full object-contain" src={currentExercise.videoUrl} alt={currentExercise.name} />
-                    ) : (
-                      <video key={currentExercise.videoUrl} className="absolute top-0 left-0 w-full h-full object-contain" src={currentExercise.videoUrl} autoPlay loop muted={isVideoMuted} playsInline controls />
-                    )
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
-                      <Icon name="play-circle" size={48} className="mb-4 opacity-50" />
-                      <p>Multimedia no disponible</p>
-                    </div>
-                  )}
+                  {(() => {
+                    const url = currentExercise.videoUrl;
+                    if (!url) return (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
+                        <Icon name="play-circle" size={48} className="mb-4 opacity-50" />
+                        <p>Multimedia no disponible</p>
+                      </div>
+                    );
+                    
+                    // 🟢 1. Detectar enlaces de Google Drive
+                    const driveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+                    if (driveMatch) {
+                      return <iframe key={url} className="absolute top-0 left-0 w-full h-full border-0" src={`https://drive.google.com/file/d/${driveMatch[1]}/preview`} allow="autoplay" allowFullScreen></iframe>;
+                    }
+
+                    // 🟢 2. Detectar enlaces de YouTube
+                    const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+                    if (ytMatch) {
+                      return <iframe key={url} className="absolute top-0 left-0 w-full h-full border-0" src={`https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&mute=${isVideoMuted ? 1 : 0}&loop=1&playlist=${ytMatch[1]}`} allow="autoplay; encrypted-media" allowFullScreen></iframe>;
+                    }
+
+                    // 🟢 3. Detectar Imágenes (.jpg, .png, etc.)
+                    if (url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i)) {
+                      return <img key={url} className="absolute top-0 left-0 w-full h-full object-contain" src={url} alt={currentExercise.name} />;
+                    }
+
+                    // 🟢 4. Por defecto, reproducir como video MP4 directo
+                    return <video key={url} className="absolute top-0 left-0 w-full h-full object-contain" src={url} autoPlay loop muted={isVideoMuted} playsInline controls />;
+                  })()}
                 </div>
 
                 <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 ${isTheaterMode ? 'hidden' : ''}`}>
@@ -899,6 +916,7 @@
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-10 font-sans relative">
           
+          {/* Modal de Alertas del Creador */}
           {alertMsg && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
                <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
@@ -1783,7 +1801,7 @@
                </div>
             )}
 
-            {/* RANKING GLOBAL INTEGRADO */}
+            {/* RANKING GLOBAL INTEGRADO DIRECTAMENTE */}
             {allUsersProgress.length > 0 && (
               <div className="border-t border-slate-100 pt-6 mt-6">
                 <div className="flex items-center justify-between mb-4">
@@ -1904,7 +1922,7 @@
               <Icon name="folder" size={24} className="text-blue-600" /> Mis Rutinas Guardadas
             </h2>
 
-            {routines.length === 0 ? (
+            {routines.filter(r => r.type !== 'progress').length === 0 ? (
               <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 shadow-sm">
                 <Icon name="dumbbell" size={64} className="mx-auto text-slate-300 mb-4" />
                 <h3 className="text-xl font-bold text-slate-500 mb-2">No tienes rutinas</h3>
@@ -1912,7 +1930,7 @@
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {routines.map(routine => (
+                {routines.filter(r => r.type !== 'progress').map(routine => (
                   <div key={routine.id} onClick={() => handleStartRoutine(routine)} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer group flex flex-col h-full relative overflow-hidden">
                     
                     <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-100 group-hover:bg-blue-600 transition-colors"></div>
@@ -1937,7 +1955,7 @@
                     
                     <h3 className="text-2xl font-bold text-blue-950 mb-2 leading-tight">{routine.name}</h3>
                     <p className="text-slate-500 font-medium flex items-center gap-2 mb-4">
-                      <Icon name="activity" size={16} /> {routine.exercises.length} Ejercicios
+                      <Icon name="activity" size={16} /> {routine.exercises?.length || 0} Ejercicios
                     </p>
                     
                     <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between text-blue-600 font-bold text-sm group-hover:text-blue-800 transition-colors">
