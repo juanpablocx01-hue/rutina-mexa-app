@@ -49,11 +49,11 @@
     // ☁️ CONFIGURACIÓN DE SUPABASE Y ADMIN
     // ==========================================
     // 1. Pega aquí tus credenciales de Supabase (Project Settings -> API)
-    const SUPABASE_URL = "https://bbqgjvcevlnjdqrrthhh.supabase.co"; 
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJicWdqdmNldmxuamRxcnJ0aGhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzU3MjIsImV4cCI6MjA5MDg1MTcyMn0.tQHqFypApbDkVzSWEo4Xe6YY0ndjF4j8vQL_E4O2Mu0";  
+    const SUPABASE_URL = ""; 
+    const SUPABASE_ANON_KEY = ""; 
     
     // 2. Pon tu correo real aquí para tener permisos de ADMINISTRADOR
-    const ADMIN_EMAIL = "jantonio.as@gmail.com";
+    const ADMIN_EMAIL = "tu_correo@gmail.com"; 
 
     // Componente auxiliar para íconos
     const Icon = ({ name, size = 24, className = "" }) => {
@@ -77,7 +77,6 @@
       return `${year}-${month}-${day}`;
     };
 
-    // Transforma una fecha a formato ISO de Semana (Ej. "2023-W42") para la Meta Semanal
     const getISOWeekStr = (dateStr) => {
       const d = new Date(dateStr + "T00:00:00");
       const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -176,6 +175,8 @@
 
       const [currentWeight, setCurrentWeight] = useState("");
       const [earnedPoints, setEarnedPoints] = useState(0);
+      
+      const [offlineVideoSrc, setOfflineVideoSrc] = useState(null);
 
       const timerRef = useRef(null);
       const recognitionRef = useRef(null);
@@ -184,6 +185,35 @@
       const finishRestAndAdvanceRef = useRef(null);
 
       const currentExercise = workoutPlan[currentExerciseIndex];
+
+      // 🟢 CARGA DEL VIDEO OFFLINE DESDE CACHÉ SI EXISTE
+      useEffect(() => {
+        let isSubscribed = true;
+        const loadVideo = async () => {
+          const url = currentExercise?.videoUrl;
+          if (!url) { setOfflineVideoSrc(null); return; }
+
+          // Si es Google Drive o YouTube, no buscamos en caché local (se reproduce online)
+          if (url.match(/drive\.google\.com/) || url.match(/youtube\.com|youtu\.be/)) {
+             setOfflineVideoSrc(url);
+             return;
+          }
+
+          try {
+              const cache = await caches.open('gemelos-videos');
+              const res = await cache.match(url);
+              if (res && isSubscribed) {
+                  const blob = await res.blob();
+                  setOfflineVideoSrc(URL.createObjectURL(blob));
+                  return;
+              }
+          } catch(e) { console.error("Error leyendo caché:", e); }
+
+          if (isSubscribed) setOfflineVideoSrc(url); // Fallback al online
+        }
+        loadVideo();
+        return () => { isSubscribed = false; };
+      }, [currentExerciseIndex, currentExercise]);
 
       useEffect(() => {
         if (currentExercise) {
@@ -404,7 +434,6 @@
             <h1 className="text-3xl md:text-4xl font-bold mb-2 text-blue-950 text-center">¡Entrenamiento Completado!</h1>
             <p className="text-slate-600 text-lg mb-8 text-center">Has superado la rutina: {routine.name}</p>
             
-            {/* PUNTOS GANADOS */}
             {earnedPoints > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-6 py-4 rounded-2xl mb-8 font-bold text-xl flex items-center justify-center gap-3 w-full max-w-sm animate-in zoom-in shadow-sm">
                  <Icon name="star" size={28} className="text-yellow-500 fill-current" />
@@ -518,7 +547,7 @@
             </div>
           </aside>
 
-          {/* MAIN CONTAINER */}
+          {/* PANEL PRINCIPAL */}
           <main className={`flex-1 flex flex-col h-[100dvh] overflow-y-auto relative transition-all duration-500 ${isTheaterMode ? 'p-2 lg:p-4 bg-slate-950' : 'p-3 md:p-6 lg:p-10'}`}>
             
             <div className={`justify-between items-center mb-4 lg:mb-8 bg-white/70 backdrop-blur-md p-3 lg:p-4 rounded-2xl border border-slate-200 shadow-sm flex gap-3 ${isTheaterMode ? 'hidden' : 'flex'}`}>
@@ -582,18 +611,21 @@
               <div className={`flex flex-col h-full transition-all duration-700 ${isResting ? 'opacity-40 blur-sm pointer-events-none' : 'opacity-100'}`}>
                 <h1 className={`font-extrabold text-blue-950 mb-4 md:mb-6 leading-tight ${isTheaterMode ? 'hidden' : 'text-2xl md:text-4xl lg:text-5xl'}`}>{currentExercise.name}</h1>
                 
+                {/* 🟢 REPRODUCTOR UNIVERSAL INTELIGENTE (Drive, YouTube, MP4, Offline) */}
                 <div className={`w-full bg-slate-950 overflow-hidden relative border border-slate-200 transition-all duration-500 ${isTheaterMode ? 'flex-1 rounded-2xl mb-4 border-slate-800' : 'aspect-video rounded-2xl md:rounded-3xl shadow-xl mb-6 md:mb-8'}`}>
                   <button onClick={() => setIsTheaterMode(!isTheaterMode)} className="absolute top-2 right-2 md:top-4 md:right-4 z-20 p-2 md:p-2.5 bg-slate-900/60 hover:bg-slate-800/80 text-white rounded-lg md:rounded-xl backdrop-blur-md transition-all shadow-lg border border-white/10" title={isTheaterMode ? "Reducir video" : "Ampliar video"}>
                     <Icon name={isTheaterMode ? "minimize" : "maximize"} size={20} />
                   </button>
+                  
                   {isTheaterMode && (
                     <div className="absolute top-2 left-2 md:top-4 md:left-4 z-20 flex flex-col sm:flex-row gap-2 pointer-events-none">
                       <div className="bg-slate-900/60 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/10"><h2 className="text-white font-bold text-sm md:text-lg truncate max-w-[200px] md:max-w-none">{currentExercise.name}</h2></div>
                       <div className="bg-blue-600/80 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl border border-white/10 w-fit"><span className="text-white font-bold text-sm md:text-lg">Serie {currentSet} / {currentExercise.sets}</span></div>
                     </div>
                   )}
+
                   {(() => {
-                    const url = currentExercise.videoUrl;
+                    const url = offlineVideoSrc || currentExercise.videoUrl;
                     if (!url) return (
                       <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
                         <Icon name="play-circle" size={48} className="mb-4 opacity-50" />
@@ -601,24 +633,20 @@
                       </div>
                     );
                     
-                    // 🟢 1. Detectar enlaces de Google Drive
                     const driveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
                     if (driveMatch) {
                       return <iframe key={url} className="absolute top-0 left-0 w-full h-full border-0" src={`https://drive.google.com/file/d/${driveMatch[1]}/preview`} allow="autoplay" allowFullScreen></iframe>;
                     }
 
-                    // 🟢 2. Detectar enlaces de YouTube
                     const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
                     if (ytMatch) {
                       return <iframe key={url} className="absolute top-0 left-0 w-full h-full border-0" src={`https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&mute=${isVideoMuted ? 1 : 0}&loop=1&playlist=${ytMatch[1]}`} allow="autoplay; encrypted-media" allowFullScreen></iframe>;
                     }
 
-                    // 🟢 3. Detectar Imágenes (.jpg, .png, etc.)
-                    if (url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i)) {
+                    if (url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i) && !url.startsWith('blob:')) {
                       return <img key={url} className="absolute top-0 left-0 w-full h-full object-contain" src={url} alt={currentExercise.name} />;
                     }
 
-                    // 🟢 4. Por defecto, reproducir como video MP4 directo
                     return <video key={url} className="absolute top-0 left-0 w-full h-full object-contain" src={url} autoPlay loop muted={isVideoMuted} playsInline controls />;
                   })()}
                 </div>
@@ -679,7 +707,7 @@
     // ==========================================
     function RoutineCreator({ initialRoutine, onSave, onCancel }) {
       const [routineName, setRoutineName] = useState(initialRoutine ? initialRoutine.name : "");
-      const [weeklyGoal, setWeeklyGoal] = useState(initialRoutine?.weeklyGoal || 3); // 🟢 NUEVO: META SEMANAL
+      const [weeklyGoal, setWeeklyGoal] = useState(initialRoutine?.weeklyGoal || 3);
       const [isPublic, setIsPublic] = useState(initialRoutine?.assignedTo === "todos" || !initialRoutine);
       const [exercises, setExercises] = useState(initialRoutine ? initialRoutine.exercises : []);
       const [editingExerciseIndex, setEditingExerciseIndex] = useState(null);
@@ -908,7 +936,7 @@
           id: initialRoutine?.id || `rutina_${Date.now()}`,
           name: routineName,
           assignedTo: finalAssignedTo,
-          weeklyGoal: Number(weeklyGoal), // 🟢 SE GUARDA LA META SEMANAL
+          weeklyGoal: Number(weeklyGoal),
           exercises: exercises
         });
       };
@@ -916,7 +944,6 @@
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-10 font-sans relative">
           
-          {/* Modal de Alertas del Creador */}
           {alertMsg && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
                <div className="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center border border-slate-100">
@@ -942,7 +969,6 @@
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
               
-              {/* 🟢 NUEVO: SELECTOR DE META SEMANAL */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-slate-600 mb-2">Nombre de la Rutina</label>
@@ -1186,7 +1212,7 @@
     // ==========================================
     // COMPONENTE: GESTIÓN DE CLIENTES
     // ==========================================
-    function ClientManager({ routines, saveRoutinesToDB, onGoBack }) {
+    function ClientManager({ routines, saveRoutinesToDB, clientPermissions, updateClientPermissions, onGoBack }) {
       const [searchEmail, setSearchEmail] = useState('');
       const [selectedClient, setSelectedClient] = useState(null);
       const [alertMsg, setAlertMsg] = useState("");
@@ -1301,7 +1327,7 @@
               </button>
               <div>
                 <h1 className="text-3xl font-extrabold text-blue-950">Gestión de Clientes</h1>
-                <p className="text-slate-500">Asigna rutinas privadas a tus alumnos registrados.</p>
+                <p className="text-slate-500">Asigna rutinas privadas y administra descargas.</p>
               </div>
             </div>
 
@@ -1367,11 +1393,31 @@
                     <h2 className="text-2xl font-bold text-blue-950 mb-2 flex items-center gap-2">
                       <Icon name="user" size={24} className="text-blue-600" /> {selectedClient}
                     </h2>
-                    <p className="text-slate-500 mb-8 border-b border-slate-100 pb-4">Activa las rutinas privadas para este alumno.</p>
+                    <p className="text-slate-500 mb-6 pb-4 border-b border-slate-100">Activa las rutinas y permisos para este alumno.</p>
 
+                    {/* 🟢 NUEVO: PERMISO PARA DESCARGAS OFFLINE */}
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 mb-8 flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                          <Icon name="download-cloud" size={20} className="text-indigo-600" /> Permitir Modo Offline (Descargas)
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm">Permite a este cliente guardar los videos (.mp4) en su dispositivo para entrenar sin internet.</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer" 
+                          checked={clientPermissions[selectedClient]?.offline === true}
+                          onChange={(e) => updateClientPermissions(selectedClient, e.target.checked)}
+                        />
+                        <div className="w-14 h-7 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-indigo-600"></div>
+                      </label>
+                    </div>
+
+                    <h3 className="font-bold text-slate-700 mb-4">Rutinas de Entrenamiento</h3>
                     <div className="space-y-4">
                       {routines.map(routine => {
-                        if (routine.type === 'progress') return null;
+                        if (routine.type === 'progress' || routine.type === 'permissions') return null;
 
                         const isPublic = routine.assignedTo === "todos";
                         const assignedEmails = routine.assignedTo && routine.assignedTo !== "todos" && routine.assignedTo !== "nadie" ? routine.assignedTo.split(',').map(e=>e.trim().toLowerCase()) : [];
@@ -1386,7 +1432,7 @@
                               <div>
                                 <h4 className={`font-bold text-lg ${isAssigned ? 'text-blue-950' : 'text-slate-600'}`}>{routine.name}</h4>
                                 <p className="text-sm text-slate-500">
-                                  {isPublic ? '🌍 Rutina Pública' : '🔒 Rutina Privada'} • {routine.exercises.length} ejercicios
+                                  {isPublic ? '🌍 Rutina Pública' : '🔒 Rutina Privada'} • {routine.exercises?.length || 0} ejercicios
                                 </p>
                               </div>
                             </div>
@@ -1396,7 +1442,7 @@
                                 Visible por defecto
                               </span>
                             ) : (
-                              <label className="relative inline-flex items-center cursor-pointer">
+                              <label className="relative inline-flex items-center cursor-pointer shrink-0">
                                 <input 
                                   type="checkbox" 
                                   className="sr-only peer" 
@@ -1409,7 +1455,7 @@
                           </div>
                         );
                       })}
-                      {routines.filter(r => r.type !== 'progress').length === 0 && (
+                      {routines.filter(r => r.type !== 'progress' && r.type !== 'permissions').length === 0 && (
                         <p className="text-center text-slate-400 py-10">No hay rutinas creadas en el sistema.</p>
                       )}
                     </div>
@@ -1434,9 +1480,10 @@
       const [routines, setRoutines] = useState([]);
       const [progressHistory, setProgressHistory] = useState({}); 
       const [activityDates, setActivityDates] = useState([]);
-      const [userScore, setUserScore] = useState(0); // 🟢 PUNTUACIÓN DEL USUARIO
+      const [userScore, setUserScore] = useState(0); 
 
-      const [allUsersProgress, setAllUsersProgress] = useState([]); // 🟢 PARA EL LEADERBOARD
+      const [allUsersProgress, setAllUsersProgress] = useState([]); 
+      const [clientPermissions, setClientPermissions] = useState({}); // 🟢 ESTADO DE PERMISOS OFFLINE
 
       const [isUsingCloud, setIsUsingCloud] = useState(false);
       const [supabaseClient, setSupabaseClient] = useState(null);
@@ -1445,6 +1492,10 @@
       const [authInitialized, setAuthInitialized] = useState(false);
       
       const [confirmDialog, setConfirmDialog] = useState(null);
+
+      // Estados de descarga offline
+      const [isDownloading, setIsDownloading] = useState(false);
+      const [downloadProgress, setDownloadProgress] = useState(0);
 
       useEffect(() => { lucide.createIcons(); });
 
@@ -1468,6 +1519,7 @@
               setProgressHistory({});
               setActivityDates([]);
               setUserScore(0);
+              setClientPermissions({});
             }
           });
 
@@ -1490,6 +1542,9 @@
              if (progData.activity) setActivityDates(progData.activity);
              if (progData.score) setUserScore(progData.score);
           }
+
+          const savedPermsStr = window.localStorage.getItem('gemelosprofit_permissions');
+          if (savedPermsStr) setClientPermissions(JSON.parse(savedPermsStr));
         } catch (e) {
           setRoutines([]);
         }
@@ -1506,7 +1561,13 @@
           const userEmail = currentUser?.email?.toLowerCase() || "";
           const isAdmin = userEmail && ADMIN_EMAIL && userEmail === ADMIN_EMAIL.toLowerCase();
 
-          // 🟢 Extraemos TODO el progreso para la tabla de líderes
+          // Extraer permisos globales
+          const permData = allRoutines.find(r => r.type === 'permissions');
+          if (permData && permData.data) {
+              setClientPermissions(permData.data);
+              window.localStorage.setItem('gemelosprofit_permissions', JSON.stringify(permData.data));
+          }
+
           const allProgress = allRoutines.filter(r => r.type === 'progress');
           setAllUsersProgress(allProgress);
 
@@ -1524,7 +1585,7 @@
           }
 
           const filteredRoutines = allRoutines.filter(routine => {
-            if (routine.type === 'progress') return false; 
+            if (routine.type === 'progress' || routine.type === 'permissions') return false; 
             if (isAdmin) return true; 
             
             const assignedTo = routine.assignedTo || "todos";
@@ -1535,6 +1596,30 @@
 
           setRoutines(filteredRoutines);
         }
+      };
+
+      // 🟢 GUARDAR LOS PERMISOS (Solo el admin dispara esto)
+      const updateClientPermissions = async (email, hasOfflineAccess) => {
+          const newPerms = { ...clientPermissions, [email]: { offline: hasOfflineAccess } };
+          setClientPermissions(newPerms);
+
+          const permDoc = {
+              id: 'global_permissions',
+              type: 'permissions',
+              owner: session?.user?.email || 'local_user',
+              assignedTo: 'todos', 
+              data: newPerms
+          };
+
+          window.localStorage.setItem('gemelosprofit_permissions', JSON.stringify(newPerms));
+
+          if (isUsingCloud && supabaseClient && session?.user) {
+              await supabaseClient.from('routines').upsert({
+                  id: permDoc.id,
+                  user_id: session.user.id,
+                  routine_data: permDoc
+              });
+          }
       };
 
       const saveRoutinesToDB = async (routineData, isDelete = false) => {
@@ -1604,7 +1689,6 @@
         updateUserProgress(newHistory, activityDates, userScore);
       };
 
-      // 🟢 MOTOR DE PUNTOS Y METAS SEMANALES
       const handleMarkWorkoutComplete = (exercisesCount) => {
         const todayStr = getLocalDateStr();
         let tempActivity = [...activityDates];
@@ -1613,15 +1697,13 @@
           tempActivity.push(todayStr);
         }
 
-        // --- CALCULAR RACHA DE SEMANAS PERFECTAS ---
         const weekCounts = {};
         tempActivity.forEach(dStr => {
            const w = getISOWeekStr(dStr);
            weekCounts[w] = (weekCounts[w] || 0) + 1;
         });
 
-        // Buscar la meta semanal configurada en las rutinas del usuario, por defecto 3
-        const userRoutines = routines.filter(r => r.type !== 'progress');
+        const userRoutines = routines.filter(r => r.type !== 'progress' && r.type !== 'permissions');
         const currentGoal = userRoutines.reduce((max, r) => Math.max(max, r.weeklyGoal || 3), 3) || 3;
 
         let streak = 0;
@@ -1637,22 +1719,64 @@
             if (daysDone >= currentGoal) {
                 streak++;
             } else {
-                // Si estamos evaluando la semana actual y no ha llegado a la meta, no rompe la racha (todavía hay tiempo)
                 if (!isFirstWeek) {
                     break;
                 }
             }
             isFirstWeek = false;
-            checkDate.setDate(checkDate.getDate() - 7); // Retroceder una semana
+            checkDate.setDate(checkDate.getDate() - 7); 
         }
 
-        // Reglas del juego: 10 pts por ejercicio + 50 de bono final. x1.5 si Racha >= 2 Semanas Perfectas
         const multiplier = streak >= 2 ? 1.5 : 1;
         const earnedPoints = Math.floor((exercisesCount * 10 + 50) * multiplier);
         const newTotalScore = userScore + earnedPoints;
 
         updateUserProgress(progressHistory, tempActivity, newTotalScore);
         return earnedPoints; 
+      };
+
+      // 🟢 LÓGICA DE DESCARGA CACHÉ OFFLINE
+      const handleDownloadOfflineVideos = async () => {
+          setIsDownloading(true);
+          setDownloadProgress(0);
+          
+          const urlsToCache = [];
+          routines.forEach(r => {
+              if (r.type !== 'progress' && r.type !== 'permissions') {
+                  r.exercises?.forEach(ex => {
+                      if (ex.videoUrl && ex.videoUrl.endsWith('.mp4')) {
+                          urlsToCache.push(ex.videoUrl);
+                      }
+                  });
+              }
+          });
+
+          const uniqueUrls = [...new Set(urlsToCache)];
+          
+          if (uniqueUrls.length === 0) {
+             alert("No hay videos en formato MP4 descargable en tus rutinas actuales.");
+             setIsDownloading(false);
+             return;
+          }
+
+          let downloaded = 0;
+          try {
+              const cache = await caches.open('gemelos-videos');
+              for (const url of uniqueUrls) {
+                  const match = await cache.match(url);
+                  if (!match) {
+                      await cache.add(url);
+                  }
+                  downloaded++;
+                  setDownloadProgress(Math.round((downloaded / uniqueUrls.length) * 100));
+              }
+              alert("¡Descarga completada! Tus videos están listos para usarse sin internet.");
+          } catch (error) {
+              console.error(error);
+              alert("Hubo un error al descargar algunos videos. Asegúrate de tener conexión estable y espacio suficiente.");
+          } finally {
+              setIsDownloading(false);
+          }
       };
 
       const handleStartRoutine = (routine) => {
@@ -1692,16 +1816,14 @@
         }
       };
 
-      // 🟢 RENDERIZADO DEL DASHBOARD ANALÍTICO
       const renderDashboard = () => {
-        // Calcular Racha de Semanas y Meta
         const weekCounts = {};
         activityDates.forEach(dStr => {
            const w = getISOWeekStr(dStr);
            weekCounts[w] = (weekCounts[w] || 0) + 1;
         });
 
-        const userRoutines = routines.filter(r => r.type !== 'progress');
+        const userRoutines = routines.filter(r => r.type !== 'progress' && r.type !== 'permissions');
         const currentGoal = userRoutines.reduce((max, r) => Math.max(max, r.weeklyGoal || 3), 3) || 3;
 
         let streak = 0;
@@ -1751,7 +1873,6 @@
                  <p className="text-xl md:text-2xl font-black text-yellow-950">{userScore} pts</p>
                </div>
 
-               {/* TARJETA RACHA SEMANAL */}
                <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 md:p-5 flex flex-col items-center justify-center text-center relative overflow-hidden">
                  <div className="absolute top-0 left-0 w-full bg-orange-200 text-orange-800 text-[9px] font-bold py-0.5 uppercase tracking-widest text-center">
                    {daysThisWeek}/{currentGoal} esta semana
@@ -1801,7 +1922,6 @@
                </div>
             )}
 
-            {/* RANKING GLOBAL INTEGRADO DIRECTAMENTE */}
             {allUsersProgress.length > 0 && (
               <div className="border-t border-slate-100 pt-6 mt-6">
                 <div className="flex items-center justify-between mb-4">
@@ -1843,7 +1963,11 @@
         return <AuthScreen supabaseClient={supabaseClient} />;
       }
 
-      const isAdmin = session?.user?.email && ADMIN_EMAIL && session.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+      const userEmailLower = session?.user?.email?.toLowerCase() || 'local_user';
+      const isAdmin = userEmailLower === ADMIN_EMAIL.toLowerCase();
+      
+      // 🟢 Verificamos si el usuario activo tiene permiso para descargar
+      const hasOfflinePerm = isAdmin || (clientPermissions[userEmailLower]?.offline === true);
 
       if (currentView === 'workout' && activeRoutine) {
         return <WorkoutPlayer 
@@ -1860,12 +1984,34 @@
       }
 
       if (currentView === 'clients') {
-        return <ClientManager routines={routines} saveRoutinesToDB={saveRoutinesToDB} onGoBack={() => setCurrentView('home')} />;
+        return <ClientManager 
+                  routines={routines} 
+                  saveRoutinesToDB={saveRoutinesToDB} 
+                  clientPermissions={clientPermissions} 
+                  updateClientPermissions={updateClientPermissions} 
+                  onGoBack={() => setCurrentView('home')} 
+               />;
       }
 
       return (
         <div className="min-h-screen bg-slate-50 text-slate-800 p-6 md:p-12 font-sans relative">
           
+          {/* MODAL DE DESCARGA */}
+          {isDownloading && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+               <div className="bg-white p-8 rounded-3xl shadow-xl max-w-sm w-full text-center border border-slate-100 flex flex-col items-center">
+                 <Icon name="download-cloud" size={48} className="text-blue-600 mb-4 animate-bounce" />
+                 <h3 className="text-xl font-bold text-slate-800 mb-2">Guardando Videos...</h3>
+                 <p className="text-sm text-slate-500 mb-6">Por favor, no cierres esta pantalla ni apagues el Wi-Fi.</p>
+                 
+                 <div className="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden">
+                    <div className="bg-blue-600 h-3 rounded-full transition-all duration-300" style={{ width: `${downloadProgress}%` }}></div>
+                 </div>
+                 <p className="font-black text-blue-900">{downloadProgress}%</p>
+               </div>
+            </div>
+          )}
+
           {/* Modal de Confirmación Principal */}
           {confirmDialog && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
@@ -1903,17 +2049,29 @@
                 </div>
               </div>
               
-              {(!isUsingCloud || isAdmin) && (
-                <div className="flex gap-3 w-full md:w-auto">
-                  <button onClick={() => setCurrentView('clients')} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-4 rounded-2xl font-bold transition shadow-sm flex items-center gap-2 flex-1 md:flex-none justify-center">
-                    <Icon name="users" size={20} /> Clientes
-                  </button>
-                  <button onClick={handleOpenCreator} className="bg-blue-900 hover:bg-blue-800 text-white px-5 py-4 rounded-2xl font-bold transition shadow-lg flex items-center gap-2 flex-1 md:flex-none justify-center">
-                    <Icon name="plus" size={20} /> Crear Rutina
-                  </button>
-                </div>
-              )}
+              <div className="flex gap-3 w-full md:w-auto flex-wrap justify-end">
+                {(!isUsingCloud || isAdmin) && (
+                  <>
+                    <button onClick={() => setCurrentView('clients')} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-4 rounded-2xl font-bold transition shadow-sm flex items-center gap-2 flex-1 md:flex-none justify-center">
+                      <Icon name="users" size={20} /> Clientes
+                    </button>
+                    <button onClick={handleOpenCreator} className="bg-blue-900 hover:bg-blue-800 text-white px-5 py-4 rounded-2xl font-bold transition shadow-lg flex items-center gap-2 flex-1 md:flex-none justify-center">
+                      <Icon name="plus" size={20} /> Crear Rutina
+                    </button>
+                  </>
+                )}
+              </div>
             </header>
+
+            {/* 🟢 BOTÓN VIP MODO OFFLINE (Solo si tiene permiso) */}
+            {hasOfflinePerm && routines.filter(r => r.type !== 'progress' && r.type !== 'permissions').length > 0 && (
+              <button 
+                 onClick={handleDownloadOfflineVideos}
+                 className="w-full bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white p-4 rounded-2xl font-bold mb-8 shadow-md flex items-center justify-center gap-3 transition transform hover:-translate-y-1"
+              >
+                <Icon name="download-cloud" size={24} /> 📥 Guardar rutinas para Modo Offline (Sin internet)
+              </button>
+            )}
 
             {/* DASHBOARD ANALÍTICO */}
             {renderDashboard()}
@@ -1922,7 +2080,7 @@
               <Icon name="folder" size={24} className="text-blue-600" /> Mis Rutinas Guardadas
             </h2>
 
-            {routines.filter(r => r.type !== 'progress').length === 0 ? (
+            {routines.filter(r => r.type !== 'progress' && r.type !== 'permissions').length === 0 ? (
               <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 shadow-sm">
                 <Icon name="dumbbell" size={64} className="mx-auto text-slate-300 mb-4" />
                 <h3 className="text-xl font-bold text-slate-500 mb-2">No tienes rutinas</h3>
@@ -1930,7 +2088,7 @@
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {routines.filter(r => r.type !== 'progress').map(routine => (
+                {routines.filter(r => r.type !== 'progress' && r.type !== 'permissions').map(routine => (
                   <div key={routine.id} onClick={() => handleStartRoutine(routine)} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer group flex flex-col h-full relative overflow-hidden">
                     
                     <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-100 group-hover:bg-blue-600 transition-colors"></div>
